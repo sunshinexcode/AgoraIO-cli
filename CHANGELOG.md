@@ -15,6 +15,12 @@ Earlier entries pre-date this convention and only carry their version's compare 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-19
+
+### Fixed
+
+- Disable git credential helpers for quickstart clone subprocesses so `agora init` and `agora quickstart create` succeed in non-interactive agent and CI environments without macOS keychain access.
+
 ## [0.2.0] - 2026-05-05
 
 ### Added
@@ -199,7 +205,8 @@ Earlier entries pre-date this convention and only carry their version's compare 
 - Support machine-readable JSON output for automation and agent workflows.
 - Ship automated release packaging through GoReleaser, including cross-platform archives, Linux packages, Homebrew, Scoop, npm wrapper packages, Docker images, and install scripts.
 
-[Unreleased]: https://github.com/AgoraIO/cli/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AgoraIO/cli/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/AgoraIO/cli/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/AgoraIO/cli/compare/v0.1.9...v0.2.0
 [0.1.9]: https://github.com/AgoraIO/cli/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/AgoraIO/cli/compare/v0.1.7...v0.1.8
