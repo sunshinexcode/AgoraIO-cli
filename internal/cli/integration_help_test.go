@@ -115,7 +115,7 @@ func TestCLIAgenticSurfaces(t *testing.T) {
 		"XDG_CONFIG_HOME": configHome,
 		"AGORA_LOG_LEVEL": "error",
 	}})
-	if introspect.exitCode != 0 || !strings.Contains(introspect.stdout, `"command":"introspect"`) || !strings.Contains(introspect.stdout, `"features":["rtc","rtm","convoai"]`) {
+	if introspect.exitCode != 0 || !strings.Contains(introspect.stdout, `"command":"introspect"`) || !strings.Contains(introspect.stdout, `"features":["rtc","rtm","convoai"]`) || !strings.Contains(introspect.stdout, `"headlessSafe":false`) || !strings.Contains(introspect.stdout, `"interactivity":"interactive-browser"`) {
 		t.Fatalf("unexpected introspect result: %+v", introspect)
 	}
 
@@ -145,5 +145,50 @@ func TestCLIOpenRejectsConflictingBrowserFlags(t *testing.T) {
 	})
 	if result.exitCode != 1 || !strings.Contains(result.stdout, `"ok":false`) || !strings.Contains(result.stdout, "choose only one of --browser or --no-browser") {
 		t.Fatalf("unexpected open conflicting flag result: %+v", result)
+	}
+}
+
+func TestAutomationDocExamplesRemainValid(t *testing.T) {
+	configHome := t.TempDir()
+	examples := []struct {
+		name       string
+		args       []string
+		wantExit   int
+		wantStdout []string
+	}{
+		{
+			name:       "introspect json",
+			args:       []string{"introspect", "--json"},
+			wantExit:   0,
+			wantStdout: []string{`"command":"introspect"`, `"commands"`},
+		},
+		{
+			name:       "auth status unauthenticated json",
+			args:       []string{"auth", "status", "--json"},
+			wantExit:   3,
+			wantStdout: []string{`"ok":false`, `"code":"AUTH_UNAUTHENTICATED"`},
+		},
+		{
+			name:       "config update explicit false syntax",
+			args:       []string{"config", "update", "--telemetry-enabled=false", "--json"},
+			wantExit:   0,
+			wantStdout: []string{`"command":"config update"`, `"telemetryEnabled":false`},
+		},
+	}
+	for _, tt := range examples {
+		t.Run(tt.name, func(t *testing.T) {
+			result := runCLI(t, tt.args, cliRunOptions{env: map[string]string{
+				"XDG_CONFIG_HOME": configHome,
+				"AGORA_LOG_LEVEL": "error",
+			}})
+			if result.exitCode != tt.wantExit {
+				t.Fatalf("automation.md example %v drifted: exit=%d want=%d stdout=%s stderr=%s. Update docs/automation.md or the example contract test.", tt.args, result.exitCode, tt.wantExit, result.stdout, result.stderr)
+			}
+			for _, want := range tt.wantStdout {
+				if !strings.Contains(result.stdout, want) {
+					t.Fatalf("automation.md example %v drifted: missing %q in stdout=%s stderr=%s. Update docs/automation.md or the example contract test.", tt.args, want, result.stdout, result.stderr)
+				}
+			}
+		})
 	}
 }
