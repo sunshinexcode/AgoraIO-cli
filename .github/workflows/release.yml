@@ -159,7 +159,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           gh release download "${{ steps.ver.outputs.tag }}" \
-            --pattern "agora-cli-go_*" \
+            --pattern "agora-cli_*" \
             --pattern "checksums.txt" \
             --dir dist
           echo "Downloaded artifacts:"
@@ -183,7 +183,7 @@ jobs:
             file="$(echo "$line" | awk '{print $2}')"
             # Only verify our archive files (not e.g. .deb/.rpm we don't repackage).
             case "$file" in
-              agora-cli-go_*_linux_*.tar.gz|agora-cli-go_*_darwin_*.tar.gz|agora-cli-go_*_windows_*.zip) ;;
+              agora-cli_*_linux_*.tar.gz|agora-cli_*_darwin_*.tar.gz|agora-cli_*_windows_*.zip) ;;
               *) continue ;;
             esac
             if [ ! -f "$file" ]; then
@@ -211,7 +211,7 @@ jobs:
           stage_platform() {
             local goos="$1" goarch="$2" npm_pkg="$3" bin_name="$4" archive_ext="$5"
             local pkg_dir="packaging/npm/${npm_pkg}"
-            local archive="agora-cli-go_${tag}_${goos}_${goarch}.${archive_ext}"
+            local archive="agora-cli_${tag}_${goos}_${goarch}.${archive_ext}"
 
             mkdir -p "${pkg_dir}/bin"
             if [ "$archive_ext" = "zip" ]; then

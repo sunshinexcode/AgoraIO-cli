@@ -124,7 +124,7 @@ func (a *App) performSelfUpdate(dryRun bool) (map[string]any, error) {
 
 	goos := runtime.GOOS
 	goarch := runtime.GOARCH
-	archiveName, ext, err := upgradeArchiveName(latest, goos, goarch)
+	candidates, err := upgradeArchiveCandidates(latest, goos, goarch)
 	if err != nil {
 		return nil, &cliError{Message: err.Error(), Code: "UPGRADE_UNSUPPORTED_PLATFORM"}
 	}
@@ -138,35 +138,49 @@ func (a *App) performSelfUpdate(dryRun bool) (map[string]any, error) {
 		baseURL = fmt.Sprintf("https://github.com/%s/releases/download", repo)
 	}
 
-	archiveURL := fmt.Sprintf("%s/v%s/%s", baseURL, latest, archiveName)
 	checksumsURL := fmt.Sprintf("%s/v%s/checksums.txt", baseURL, latest)
-
-	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := downloadFile(archiveURL, archivePath, a.env); err != nil {
-		return nil, &cliError{Message: fmt.Sprintf("could not download %s: %v", archiveURL, err), Code: "UPGRADE_DOWNLOAD_FAILED"}
-	}
 	checksumsPath := filepath.Join(tmpDir, "checksums.txt")
 	if err := downloadFile(checksumsURL, checksumsPath, a.env); err != nil {
 		return nil, &cliError{Message: fmt.Sprintf("could not download %s: %v", checksumsURL, err), Code: "UPGRADE_DOWNLOAD_FAILED"}
 	}
 
-	// Verify SHA-256.
-	expected, err := expectedChecksumFor(checksumsPath, archiveName)
-	if err != nil {
-		return nil, &cliError{Message: fmt.Sprintf("could not parse checksums: %v", err), Code: "UPGRADE_CHECKSUM_FAILED"}
-	}
-	if expected == "" {
-		return nil, &cliError{Message: fmt.Sprintf("checksum for %s not found in checksums.txt", archiveName), Code: "UPGRADE_CHECKSUM_FAILED"}
-	}
-	actual, err := sha256OfFile(archivePath)
-	if err != nil {
-		return nil, &cliError{Message: fmt.Sprintf("could not hash downloaded archive: %v", err), Code: "UPGRADE_CHECKSUM_FAILED"}
-	}
-	if !strings.EqualFold(expected, actual) {
-		return nil, &cliError{
-			Message: fmt.Sprintf("checksum mismatch for %s; expected %s, got %s", archiveName, expected, actual),
-			Code:    "UPGRADE_CHECKSUM_FAILED",
+	var ext string
+	var archivePath string
+	var downloadErr error
+	for _, candidate := range candidates {
+		candidateURL := fmt.Sprintf("%s/v%s/%s", baseURL, latest, candidate.name)
+		candidatePath := filepath.Join(tmpDir, candidate.name)
+		if err := downloadFile(candidateURL, candidatePath, a.env); err != nil {
+			downloadErr = err
+			continue
 		}
+		expected, err := expectedChecksumFor(checksumsPath, candidate.name)
+		if err != nil {
+			return nil, &cliError{Message: fmt.Sprintf("could not parse checksums: %v", err), Code: "UPGRADE_CHECKSUM_FAILED"}
+		}
+		if expected == "" {
+			downloadErr = fmt.Errorf("checksum for %s not found in checksums.txt", candidate.name)
+			continue
+		}
+		actual, err := sha256OfFile(candidatePath)
+		if err != nil {
+			return nil, &cliError{Message: fmt.Sprintf("could not hash downloaded archive: %v", err), Code: "UPGRADE_CHECKSUM_FAILED"}
+		}
+		if !strings.EqualFold(expected, actual) {
+			return nil, &cliError{
+				Message: fmt.Sprintf("checksum mismatch for %s; expected %s, got %s", candidate.name, expected, actual),
+				Code:    "UPGRADE_CHECKSUM_FAILED",
+			}
+		}
+		ext = candidate.ext
+		archivePath = candidatePath
+		break
+	}
+	if archivePath == "" {
+		if downloadErr == nil {
+			downloadErr = errors.New("no matching release archive found")
+		}
+		return nil, &cliError{Message: fmt.Sprintf("could not download a verified release archive: %v", downloadErr), Code: "UPGRADE_DOWNLOAD_FAILED"}
 	}
 
 	// Extract the new binary to a temp file next to the running one.
@@ -384,18 +398,45 @@ func upgradeCommandForInstallMethod(method string) string {
 	}
 }
 
-// upgradeArchiveName returns the GoReleaser archive filename for the given
-// version + platform and its extension ("tar.gz" or "zip"). It mirrors the
-// naming in .goreleaser.yaml.
-func upgradeArchiveName(version, goos, goarch string) (string, string, error) {
+type upgradeArchiveCandidate struct {
+	name string
+	ext  string
+}
+
+// upgradeArchiveCandidates returns release archive filenames to try, newest
+// naming first. Legacy agora-cli-go_* names remain published as release
+// aliases (see .goreleaser.yaml) so older binaries and this fallback both
+// work across the rename.
+func upgradeArchiveCandidates(version, goos, goarch string) ([]upgradeArchiveCandidate, error) {
+	primary, ext, err := releaseArchiveFileName("agora-cli", version, goos, goarch)
+	if err != nil {
+		return nil, err
+	}
+	legacy, _, err := releaseArchiveFileName("agora-cli-go", version, goos, goarch)
+	if err != nil {
+		return nil, err
+	}
+	return []upgradeArchiveCandidate{
+		{name: primary, ext: ext},
+		{name: legacy, ext: ext},
+	}, nil
+}
+
+func releaseArchiveFileName(prefix, version, goos, goarch string) (string, string, error) {
 	switch goos {
 	case "windows":
-		return fmt.Sprintf("agora-cli-go_v%s_%s_%s.zip", version, goos, goarch), "zip", nil
+		return fmt.Sprintf("%s_v%s_%s_%s.zip", prefix, version, goos, goarch), "zip", nil
 	case "darwin", "linux":
-		return fmt.Sprintf("agora-cli-go_v%s_%s_%s.tar.gz", version, goos, goarch), "tar.gz", nil
+		return fmt.Sprintf("%s_v%s_%s_%s.tar.gz", prefix, version, goos, goarch), "tar.gz", nil
 	default:
 		return "", "", fmt.Errorf("self-update is not supported on %s/%s; use the platform installer", goos, goarch)
 	}
+}
+
+// upgradeArchiveName returns the current GoReleaser archive filename for the
+// given version + platform and its extension ("tar.gz" or "zip").
+func upgradeArchiveName(version, goos, goarch string) (string, string, error) {
+	return releaseArchiveFileName("agora-cli", version, goos, goarch)
 }
 
 // resolveLatestVersion queries the GitHub API for the latest release tag and
