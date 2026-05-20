@@ -15,18 +15,38 @@ Earlier entries pre-date this convention and only carry their version's compare 
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-05-19
+## [0.2.1] - 2026-05-20
+
+Automation hardening, quickstart reliability fixes, and release-artifact rename. See [docs/releases/v0.2.1.md](docs/releases/v0.2.1.md) for the GitHub release summary.
 
 ### Added
 
 - Emit a `clone:override` progress event when `AGORA_QUICKSTART_<TEMPLATE>_REPO_URL` overrides the clone URL, so workshop and CI runs can confirm which fork they cloned.
 - Document `AGORA_QUICKSTART_<TEMPLATE>_REPO_URL` in `agora env-help` and the automation reference.
 
+### Changed
+
+- `agora open` now defaults to URL-only behavior in CI and non-TTY sessions (unless `--browser` is explicitly passed), and adds explicit `--browser` / `--no-browser` conflict validation.
+- `agora init` now requires `--template` in non-interactive (`--yes`) runs instead of silently selecting the first available template; init JSON output now includes `projectSelectionReason` for deterministic agent branching.
+- Block installer-managed `agora upgrade` in CI unless `AGORA_ALLOW_UPGRADE_IN_CI=1` is set; blocked runs return `status: "manual"` with `ciBlocked: true` and suggest `agora upgrade --check --json`.
+- Align `go.mod` module path with the public repository: `github.com/AgoraIO/cli` (replaces the workspace-only `github.com/agora/cli-workspace/agora-cli-go` path).
+- Rename GitHub release archives from `agora-cli-go_v*` to `agora-cli_v*` starting in v0.2.1 (install scripts and docs use the new name). `agora upgrade` selects the archive prefix from the target release version: `agora-cli-go_*` for v0.1.7–v0.2.0, `agora-cli_*` for v0.2.1+.
+
 ### Fixed
 
 - Disable git credential helpers for quickstart clone subprocesses so `agora init` and `agora quickstart create` succeed in non-interactive agent and CI environments without macOS keychain access.
 - Pass `--` before the repo URL and target directory on `git clone` so values starting with `-` cannot be parsed as git options.
 - Fail fast with `QUICKSTART_GIT_MISSING` when `git` is not on `PATH`, with `QUICKSTART_REF_INVALID` for malformed `--ref` values, and with `QUICKSTART_REPO_OVERRIDE_INVALID` when the env override URL is malformed, instead of surfacing cryptic git errors.
+
+### Documentation
+
+- Align `AGENTS.md` with shipped `project doctor --deep` behavior and document current `agora open` browser-launch rules.
+- Expand `docs/automation.md` and `docs/llms.txt` with MCP transport/auth caveats, headless CI guidance, init/upgrade automation fields, and `agora env-help` discovery pointers.
+- Update agent quickstart rule and skills examples to include deterministic init (`--new-project`) defaults.
+- Document MCP progress caveat in `agora mcp serve` help and the skills catalog.
+- Fix contributor clone path in `CONTRIBUTING.md` to match the canonical `git clone … && cd cli/` layout.
+- Align npm package `repository.directory` paths with the repo root layout and update the issue template docs link.
+- Add v0.2.1 release notes at `docs/releases/v0.2.1.md` and document archive naming / upgrade migration in `docs/install.md` and `docs/troubleshooting.md`.
 
 ## [0.2.0] - 2026-05-05
 
