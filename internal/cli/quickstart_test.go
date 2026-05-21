@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -47,8 +48,8 @@ func TestCloneQuickstartRepoRejectsBadRef(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for dash-prefixed ref, got nil")
 	}
-	cliErr, ok := err.(*cliError)
-	if !ok {
+	var cliErr *cliError
+	if !errors.As(err, &cliErr) {
 		t.Fatalf("expected *cliError, got %T: %v", err, err)
 	}
 	if cliErr.Code != "QUICKSTART_REF_INVALID" {
@@ -144,7 +145,10 @@ func TestQuickstartRepoURLOverride(t *testing.T) {
 	app.env = map[string]string{"AGORA_QUICKSTART_NEXTJS_REPO_URL": "-fexploit"}
 	if _, _, err := app.quickstartRepoURL(tmpl); err == nil {
 		t.Fatal("expected error for invalid override")
-	} else if cliErr, ok := err.(*cliError); !ok || cliErr.Code != "QUICKSTART_REPO_OVERRIDE_INVALID" {
-		t.Fatalf("expected QUICKSTART_REPO_OVERRIDE_INVALID, got %v", err)
+	} else {
+		var cliErr *cliError
+		if !errors.As(err, &cliErr) || cliErr.Code != "QUICKSTART_REPO_OVERRIDE_INVALID" {
+			t.Fatalf("expected QUICKSTART_REPO_OVERRIDE_INVALID, got %v", err)
+		}
 	}
 }

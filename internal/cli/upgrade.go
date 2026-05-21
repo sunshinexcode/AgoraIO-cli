@@ -445,12 +445,6 @@ func releaseArchiveFileName(prefix, version, goos, goarch string) (string, strin
 	}
 }
 
-// upgradeArchiveName returns the current GoReleaser archive filename for the
-// given version + platform and its extension ("tar.gz" or "zip").
-func upgradeArchiveName(version, goos, goarch string) (string, string, error) {
-	return releaseArchiveFileName("agora-cli", version, goos, goarch)
-}
-
 // resolveLatestVersion queries the GitHub API for the latest release tag and
 // returns the bare version (no leading "v"). Honors GITHUB_API_URL and
 // GITHUB_TOKEN/GH_TOKEN for testing and rate-limit relief.
