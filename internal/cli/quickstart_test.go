@@ -89,6 +89,7 @@ func TestValidateGitRef(t *testing.T) {
 }
 
 func TestValidateRepoOverrideURL(t *testing.T) {
+	localAbsPath := filepath.Join(os.TempDir(), "example-repo")
 	cases := []struct {
 		name string
 		url  string
@@ -100,7 +101,7 @@ func TestValidateRepoOverrideURL(t *testing.T) {
 		{"git", "git://github.com/AgoraIO/example.git", true},
 		{"file", "file:///srv/mirror/example.git", true},
 		{"ssh shorthand", "git@github.com:AgoraIO/example.git", true},
-		{"absolute local path", "/tmp/example-repo", true},
+		{"absolute local path", localAbsPath, true},
 		{"empty rejected", "", false},
 		{"dash prefix rejected", "-https://evil/repo", false},
 		{"unrecognized form rejected", "example", false},
