@@ -40,7 +40,7 @@ jobs:
         run: go run ./cmd/gendocs -check
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Build Pages site
         uses: actions/jekyll-build-pages@v1
