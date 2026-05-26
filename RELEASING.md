@@ -25,8 +25,8 @@ The release workflow (`.github/workflows/release.yml`) then:
    - Publishes the six per-platform packages with `npm publish --provenance`
    - Publishes the wrapper package (`agoraio-cli`) with `npm publish --provenance`
    - Runs a post-publish smoke test: `npx --yes agoraio-cli@<tag> --version` with retry/backoff to handle registry propagation
-   - Requires `NPM_TOKEN` secret with publish access to `agoraio-cli` and `agoraio-cli-*`
-   - Requires `id-token: write` workflow permission for sigstore-backed npm provenance attestations
+   - Authenticates via [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC from GitHub Actions — no `NPM_TOKEN` secret)
+   - Requires `id-token: write` workflow permission (already set in `release.yml`)
 
 3. **Apt repository** job (triggered by the published release):
    - Downloads `.deb` files from the release
@@ -63,17 +63,19 @@ The release workflow exposes a `workflow_dispatch` trigger that runs the npm pub
 
 Before tagging the first real release that ships npm, confirm:
 
-- [ ] `NPM_TOKEN` secret is set in the repo (Settings → Secrets and variables → Actions). Token must have publish access to `agoraio-cli` and all unscoped `agoraio-cli-*` platform packages.
+- [ ] Each npm package has a **Trusted Publisher** configured on [npmjs.com](https://www.npmjs.com) (Package → Settings → Trusted Publisher → GitHub Actions):
+  - Repository: `AgoraIO/cli`
+  - Workflow filename: `release.yml`
+  - Configure for `agoraio-cli` and all six `agoraio-cli-{os}-{arch}` platform packages
 - [ ] `agoraio-cli` and `agoraio-cli-*` package names on npmjs.com are owned by the Agora npm org / publisher and not squatted.
-- [ ] The workflow has `id-token: write` permission (already set in `release.yml`); npm provenance requires it.
-- [ ] A `workflow_dispatch` dry-run on the current `main` succeeds end-to-end (validates packaging, scripts, provenance).
+- [ ] The workflow has `id-token: write` permission (already set in `release.yml`); trusted publishing and provenance require it.
+- [ ] A `workflow_dispatch` dry-run on the current `main` succeeds end-to-end (validates packaging and tarball contents).
 - [ ] First publish should be a release-candidate tag (e.g. `v0.1.x-rc.1`) so an unexpected failure does not affect a "latest" tag in the registry.
 
 ## Required Secrets and Variables
 
 | Name                 | Type     | Required for                    |
 | -------------------- | -------- | ------------------------------- |
-| `NPM_TOKEN`          | secret   | npm publish (active)            |
 | `APT_SIGNING_KEY`    | secret   | Signed apt repo on GitHub Pages |
 | `APT_SIGNING_KEY_ID` | variable | Signed apt repo on GitHub Pages |
 
@@ -105,7 +107,7 @@ If a published version is bad:
 
 - [ ] Enable GitHub Pages on this repo (Settings → Pages → Source: GitHub Actions)
 - [ ] Generate GPG key for apt signing; set `APT_SIGNING_KEY` and `APT_SIGNING_KEY_ID`
-- [ ] Set `NPM_TOKEN` with publish access to `agoraio-cli` and all `agoraio-cli-*` packages
+- [ ] Configure npm **Trusted Publishers** for `agoraio-cli` and all `agoraio-cli-*` packages (repo: `AgoraIO/cli`, workflow: `release.yml`)
 - [ ] Run a `workflow_dispatch` dry-run of the release workflow to validate npm packaging
 - [ ] Add Homebrew and Scoop GoReleaser blocks before announcing those channels
 - [ ] Submit first Winget manifest PR to `microsoft/winget-pkgs` after the first release

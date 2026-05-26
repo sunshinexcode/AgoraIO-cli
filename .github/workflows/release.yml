@@ -18,7 +18,7 @@ on:
 permissions:
   contents: write   # create GitHub release artifacts for installers
   packages: write   # push to GitHub Container Registry (Docker)
-  id-token: write   # required for npm provenance attestations (sigstore)
+  id-token: write   # required for npm trusted publishing and provenance (OIDC)
 
 jobs:
   goreleaser:
@@ -112,8 +112,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - name: Resolve target version
         id: ver
@@ -257,10 +258,23 @@ jobs:
           ' packaging/npm/agoraio-cli/package.json > "$tmp"
           mv "$tmp" packaging/npm/agoraio-cli/package.json
 
+      - name: Prepare npm for trusted publishing
+        if: steps.mode.outputs.mode == 'publish'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Trusted publishing requires npm CLI 11.5.1+.
+          npm install -g npm@latest
+          npm --version
+          # setup-node writes an empty _authToken placeholder when registry-url is set
+          # without NODE_AUTH_TOKEN; remove it so npm uses OIDC trusted publishing.
+          if [ -n "${NPM_CONFIG_USERCONFIG:-}" ] && [ -f "$NPM_CONFIG_USERCONFIG" ]; then
+            sed -i '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$NPM_CONFIG_USERCONFIG"
+          fi
+
       - name: Publish platform packages
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           PUBLISH_ARGS: ${{ steps.mode.outputs.publish_args }}
         run: |
           set -euo pipefail
@@ -271,9 +285,15 @@ jobs:
             packaging/npm/agoraio-cli-linux-x64 \
             packaging/npm/agoraio-cli-win32-x64 \
             packaging/npm/agoraio-cli-win32-arm64; do
+            package_name="$(node -p "require('./${pkg}/package.json').name")"
+            package_version="$(node -p "require('./${pkg}/package.json').version")"
+            if [ -z "$PUBLISH_ARGS" ] && npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+              echo "${package_name}@${package_version} is already published; skipping."
+              continue
+            fi
             echo "Publishing $pkg ${PUBLISH_ARGS}"
+            # Authenticates via npm trusted publishing (OIDC) when not in dry-run mode.
             # --provenance is honored by publishConfig.provenance; passing here for clarity.
-            # When PUBLISH_ARGS contains --dry-run, no provenance attestation is created.
             if [ -n "$PUBLISH_ARGS" ]; then
               npm publish "$pkg" --access public $PUBLISH_ARGS
             else
@@ -284,11 +304,16 @@ jobs:
       - name: Publish wrapper package
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           PUBLISH_ARGS: ${{ steps.mode.outputs.publish_args }}
         run: |
           set -euo pipefail
           pkg="packaging/npm/agoraio-cli"
+          package_name="$(node -p "require('./${pkg}/package.json').name")"
+          package_version="$(node -p "require('./${pkg}/package.json').version")"
+          if [ -z "$PUBLISH_ARGS" ] && npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+            echo "${package_name}@${package_version} is already published; skipping."
+            exit 0
+          fi
           echo "Publishing $pkg ${PUBLISH_ARGS}"
           if [ -n "$PUBLISH_ARGS" ]; then
             npm publish "$pkg" --access public $PUBLISH_ARGS

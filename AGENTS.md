@@ -258,8 +258,8 @@ packaging/npm/
 6. Smoke-tests the published wrapper with `npx --yes agoraio-cli@<tag> --version` (retry/backoff for registry propagation)
 
 **Prerequisites:**
-- `NPM_TOKEN` secret in the repo, with publish access to `agoraio-cli` and all unscoped `agoraio-cli-*` platform packages.
-- `id-token: write` workflow permission (already set in `release.yml`) — required for npm provenance.
+- npm **Trusted Publisher** configured on each package (`agoraio-cli` and all `agoraio-cli-*`), pointing at repo `AgoraIO/cli` and workflow `release.yml`.
+- `id-token: write` workflow permission (already set in `release.yml`) — required for trusted publishing and provenance.
 
 **Manual dry-run:** the workflow exposes `workflow_dispatch` with a `dry_run` input that runs `npm publish --dry-run` against a synthetic version, validating packaging without publishing.
 
