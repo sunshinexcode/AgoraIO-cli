@@ -182,8 +182,7 @@ verify_cosign_optional() {
   if command -v cosign >/dev/null 2>&1; then
     say_step "Verifying checksums.txt signature with cosign..."
     cosign verify-blob \
-      --certificate "${CHECKSUMS_PATH}.pem" \
-      --signature   "${CHECKSUMS_PATH}.sig" \
+      --bundle "${CHECKSUMS_PATH}.sigstore.json" \
       --certificate-identity-regexp "https://github.com/AgoraIO/cli/.github/workflows/release.yml@refs/tags/v.*" \
       --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
       "$CHECKSUMS_PATH" >/dev/null

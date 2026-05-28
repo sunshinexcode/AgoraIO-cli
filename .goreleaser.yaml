@@ -61,14 +61,14 @@ sboms:
 
 # ---------------------------------------------------------------------------
 # Cosign signatures (keyless / OIDC)
-# Signs every checksum file, archive SBOM, and Linux package SBOM with the
-# release workflow's GitHub Actions OIDC token. The resulting transparency
-# log entries are stored in Sigstore Rekor and verifiable with:
+# Signs the checksum file with the release workflow's GitHub Actions OIDC
+# token. The resulting transparency log entry is stored in Sigstore Rekor and
+# verifiable with:
 #
 #   cosign verify-blob \
 #     --certificate-identity-regexp '^https://github.com/AgoraIO/cli/' \
 #     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-#     --signature <artifact>.sig --certificate <artifact>.pem <artifact>
+#     --bundle <artifact>.sigstore.json <artifact>
 #
 # Requires `cosign` on the runner and `id-token: write` in release.yml
 # (already granted for npm provenance).
@@ -76,13 +76,11 @@ sboms:
 signs:
   - id: cosign-keyless
     cmd: cosign
-    signature: "${artifact}.sig"
-    certificate: "${artifact}.pem"
+    signature: "${artifact}.sigstore.json"
     args:
       - "sign-blob"
       - "--yes"
-      - "--output-signature=${signature}"
-      - "--output-certificate=${certificate}"
+      - "--bundle=${signature}"
       - "${artifact}"
     artifacts: checksum
     output: true

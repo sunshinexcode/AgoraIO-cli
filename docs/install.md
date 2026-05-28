@@ -349,17 +349,15 @@ For CI, automation, and reproducible environments, pin `VERSION` explicitly inst
 Every release is signed with [Cosign](https://docs.sigstore.dev/cosign/overview/) using GitHub Actions OIDC (keyless mode) and ships an [SPDX 2.3](https://spdx.dev/) SBOM per archive and per Linux package. To verify the `checksums.txt` file before trusting any artifact:
 
 ```bash
-TAG=v0.2.1
+TAG=vX.Y.Z
 ASSET_BASE="https://github.com/AgoraIO/cli/releases/download/${TAG}"
 curl -fsSLO "${ASSET_BASE}/checksums.txt"
-curl -fsSLO "${ASSET_BASE}/checksums.txt.sig"
-curl -fsSLO "${ASSET_BASE}/checksums.txt.pem"
+curl -fsSLO "${ASSET_BASE}/checksums.txt.sigstore.json"
 
 cosign verify-blob \
   --certificate-identity-regexp '^https://github.com/AgoraIO/cli/' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   checksums.txt
 ```
 

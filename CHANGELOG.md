@@ -15,6 +15,10 @@ Earlier entries pre-date this convention and only carry their version's compare 
 
 ## [Unreleased]
 
+### Fixed
+
+- Update GoReleaser Cosign signing to emit `checksums.txt.sigstore.json` with `--bundle`, matching Cosign's current bundle-based signing flow.
+
 ## [0.2.2] - 2026-05-26
 
 Python quickstart repository URL correction.
