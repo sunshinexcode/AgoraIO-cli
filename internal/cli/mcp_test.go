@@ -188,6 +188,75 @@ func TestMCPProjectWebhookDeleteRequiresConfirm(t *testing.T) {
 	}
 }
 
+func TestMCPProjectWebhookRejectsFractionalConfigID(t *testing.T) {
+	a := newTestApp(t)
+	_, err := a.callMCPTool("agora.project.webhook.show", map[string]any{
+		"configId":   float64(42.9),
+		"feature":    "rtc",
+		"project":    "demo",
+		"withSecret": false,
+	}, nil)
+	assertCLIErrorCode(t, err, "WEBHOOK_CONFIG_ID_REQUIRED")
+}
+
+func TestMCPProjectWebhookRejectsMissingConfigID(t *testing.T) {
+	a := newTestApp(t)
+	_, err := a.callMCPTool("agora.project.webhook.update", map[string]any{
+		"feature": "rtc",
+		"project": "demo",
+	}, nil)
+	assertCLIErrorCode(t, err, "WEBHOOK_CONFIG_ID_REQUIRED")
+}
+
+func TestMCPProjectWebhookConfigIDSchemaUsesInteger(t *testing.T) {
+	for _, tool := range mcpTools() {
+		name, _ := tool["name"].(string)
+		if name != "agora.project.webhook.show" && name != "agora.project.webhook.update" && name != "agora.project.webhook.delete" {
+			continue
+		}
+		inputSchema := tool["inputSchema"].(map[string]any)
+		properties := inputSchema["properties"].(map[string]any)
+		configID := properties["configId"].(map[string]any)
+		if configID["type"] != "integer" {
+			t.Fatalf("%s configId type = %v, want integer", name, configID["type"])
+		}
+	}
+}
+
+func TestMCPConfigIDArgAcceptsIntegralFloat64(t *testing.T) {
+	got, err := configIDArg(map[string]any{"configId": float64(42)}, "configId")
+	if err != nil {
+		t.Fatalf("configIDArg returned error: %v", err)
+	}
+	if got != 42 {
+		t.Fatalf("configIDArg = %d, want 42", got)
+	}
+}
+
+func TestMCPOptionalBoolArgFalseIsNonNil(t *testing.T) {
+	got := optionalBoolArg(map[string]any{"enabled": false}, "enabled")
+	if got == nil {
+		t.Fatal("optionalBoolArg returned nil for false")
+	}
+	if *got {
+		t.Fatal("optionalBoolArg returned true, want false")
+	}
+}
+
+func assertCLIErrorCode(t *testing.T, err error, want string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected %s error", want)
+	}
+	var cliErr *cliError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("expected *cliError, got %T: %v", err, err)
+	}
+	if cliErr.Code != want {
+		t.Fatalf("code = %q, want %s", cliErr.Code, want)
+	}
+}
+
 // TestMCPVersionToolReturnsBuildInfo runs end-to-end through serveMCP
 // for a no-arg, no-network tool to verify the request/response loop
 // works, including the content[0].text envelope.

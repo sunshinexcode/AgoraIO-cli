@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 
@@ -210,7 +211,7 @@ func mcpTools() []map[string]any {
 		mcpTool("agora.project.webhook.events", "List available webhook events for a feature", map[string]string{"feature": "string"}),
 		mcpTool("agora.project.webhook.list", "List webhook configurations for a project feature", map[string]string{"feature": "string", "project": "string"}),
 		mcpTool("agora.project.webhook.show", "Show one webhook configuration", map[string]string{
-			"configId":   "number",
+			"configId":   "integer",
 			"feature":    "string",
 			"project":    "string",
 			"withSecret": "boolean",
@@ -224,7 +225,7 @@ func mcpTools() []map[string]any {
 			"deliveryRegion": "string",
 		}),
 		mcpTool("agora.project.webhook.update", "Update a webhook configuration", map[string]string{
-			"configId":       "number",
+			"configId":       "integer",
 			"feature":        "string",
 			"project":        "string",
 			"url":            "string",
@@ -233,7 +234,7 @@ func mcpTools() []map[string]any {
 			"enabled":        "boolean",
 		}),
 		mcpTool("agora.project.webhook.delete", "Delete a webhook configuration", map[string]string{
-			"configId": "number",
+			"configId": "integer",
 			"feature":  "string",
 			"project":  "string",
 			"confirm":  "boolean",
@@ -456,8 +457,12 @@ func (a *App) callMCPTool(name string, args map[string]any, progress progressEmi
 		return a.projectWebhookList(stringArg(args, "feature"), stringArg(args, "project"), false)
 
 	case "agora.project.webhook.show":
+		configID, err := configIDArg(args, "configId")
+		if err != nil {
+			return nil, err
+		}
 		return a.projectWebhookShow(
-			intArg(args, "configId", 0),
+			configID,
 			stringArg(args, "feature"),
 			stringArg(args, "project"),
 			boolArg(args, "withSecret", false),
@@ -474,8 +479,12 @@ func (a *App) callMCPTool(name string, args map[string]any, progress progressEmi
 		})
 
 	case "agora.project.webhook.update":
+		configID, err := configIDArg(args, "configId")
+		if err != nil {
+			return nil, err
+		}
 		return a.projectWebhookUpdate(webhookUpdateOptions{
-			ConfigID:       intArg(args, "configId", 0),
+			ConfigID:       configID,
 			Feature:        stringArg(args, "feature"),
 			Project:        stringArg(args, "project"),
 			URL:            stringArg(args, "url"),
@@ -485,11 +494,15 @@ func (a *App) callMCPTool(name string, args map[string]any, progress progressEmi
 		})
 
 	case "agora.project.webhook.delete":
+		configID, err := configIDArg(args, "configId")
+		if err != nil {
+			return nil, err
+		}
 		if !boolArg(args, "confirm", false) {
 			return nil, &cliError{Message: "confirmation required; pass confirm:true to delete this webhook configuration", Code: "CONFIRMATION_REQUIRED"}
 		}
 		return a.projectWebhookDelete(
-			intArg(args, "configId", 0),
+			configID,
 			stringArg(args, "feature"),
 			stringArg(args, "project"),
 		)
@@ -576,6 +589,29 @@ func boolArg(args map[string]any, key string, fallback bool) bool {
 		return value
 	}
 	return fallback
+}
+
+func configIDArg(args map[string]any, key string) (int, error) {
+	value, ok := args[key]
+	if !ok || value == nil {
+		return 0, webhookConfigIDRequiredError()
+	}
+	switch v := value.(type) {
+	case int:
+		if v > 0 {
+			return v, nil
+		}
+	case float64:
+		maxInt := int(^uint(0) >> 1)
+		if v > 0 && !math.IsInf(v, 0) && !math.IsNaN(v) && math.Trunc(v) == v && v <= float64(maxInt) {
+			return int(v), nil
+		}
+	}
+	return 0, webhookConfigIDRequiredError()
+}
+
+func webhookConfigIDRequiredError() *cliError {
+	return &cliError{Message: "webhook config ID is required", Code: "WEBHOOK_CONFIG_ID_REQUIRED"}
 }
 
 func optionalBoolArg(args map[string]any, key string) *bool {
