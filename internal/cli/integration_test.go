@@ -922,6 +922,30 @@ func TestProjectWebhookEventsTrimsFeatureBeforeAPIRequest(t *testing.T) {
 	}
 }
 
+func TestProjectWebhookFeaturePersistentFlagBeforeSubcommand(t *testing.T) {
+	configHome := t.TempDir()
+	api := newFakeCLIBFF()
+	defer api.server.Close()
+	persistSessionForIntegration(t, configHome)
+
+	result := runCLI(t, []string{"project", "webhook", "--feature", "rtc", "events", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
+	if result.exitCode != 0 || !strings.Contains(result.stdout, `"command":"project webhook events"`) || !strings.Contains(result.stdout, `"feature":"rtc"`) || !strings.Contains(result.stdout, `"key":"channel-created"`) {
+		t.Fatalf("unexpected webhook events result with parent feature flag: exit=%d stdout=%s stderr=%s", result.exitCode, result.stdout, result.stderr)
+	}
+}
+
+func TestProjectWebhookHelpShowsFeatureAndExamples(t *testing.T) {
+	parent := runCLI(t, []string{"project", "webhook", "--help"}, cliRunOptions{})
+	if parent.exitCode != 0 || !strings.Contains(parent.stdout, "--feature string") || !strings.Contains(parent.stdout, "agora project webhook --feature rtc events") {
+		t.Fatalf("unexpected project webhook help: exit=%d stdout=%s stderr=%s", parent.exitCode, parent.stdout, parent.stderr)
+	}
+
+	create := runCLI(t, []string{"project", "webhook", "create", "--help"}, cliRunOptions{})
+	if create.exitCode != 0 || !strings.Contains(create.stdout, "agora project webhook create --feature rtc") || !strings.Contains(create.stdout, "agora project webhook --feature rtc create") {
+		t.Fatalf("unexpected project webhook create help: exit=%d stdout=%s stderr=%s", create.exitCode, create.stdout, create.stderr)
+	}
+}
+
 func TestProjectWebhookEventsPrettyOmitsPayload(t *testing.T) {
 	configHome := t.TempDir()
 	api := newFakeCLIBFF()

@@ -35,7 +35,7 @@ Pseudo commands are root-level flags that emit their own JSON envelope rather th
 
 Manage Agora authentication
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora auth login`
 
@@ -50,31 +50,31 @@ Authenticate with Agora Console
 
 Clear the local Agora session
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora auth status`
 
 Show the current auth status
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora config`
 
 Manage persisted Agora CLI defaults
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora config get`
 
 Read persisted CLI defaults
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora config path`
 
 Show the config file path
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora config update`
 
@@ -96,13 +96,13 @@ Update persisted CLI defaults
 
 Diagnose the local Agora CLI install (PATH, version, network, auth, MCP host)
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora env-help`
 
 List every AGORA_* environment variable the CLI honors
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora init`
 
@@ -123,7 +123,7 @@ Create a project, clone a quickstart, and write env in one flow
 
 Emit machine-readable command metadata
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora login`
 
@@ -138,19 +138,19 @@ Authenticate with Agora Console
 
 Clear the local Agora session
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora mcp`
 
 Run Agora CLI as a local MCP server
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora mcp serve`
 
 Serve Agora CLI tools over MCP
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora open`
 
@@ -166,7 +166,7 @@ Open Agora Console or CLI docs
 
 Manage remote Agora project resources
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora project create`
 
@@ -215,25 +215,25 @@ Write project environment variables to a dotenv file
 
 Manage project feature state
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora project feature enable`
 
 Enable one feature for a project
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora project feature list`
 
 List feature status for a project
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora project feature status`
 
 Show one feature status
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora project list`
 
@@ -250,19 +250,21 @@ List projects available to the current account
 
 Show one project
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora project use`
 
 Set the current project context
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora project webhook`
 
 Manage project webhook configurations
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--feature` | `string` | — | project feature for webhook operations: rtc, rtm, or convoai |
 
 ### `agora project webhook create`
 
@@ -272,7 +274,6 @@ Create a webhook configuration
 |------|------|---------|-------------|
 | `--delivery-region` | `string` | — | webhook delivery region: cn, sea, na, or eu |
 | `--event` | `stringArray` | `[]` | webhook event key, display name, or numeric ID; repeat to subscribe to multiple events |
-| `--feature` | `string` | — | project feature for the webhook configuration |
 | `--project` | `string` | — | project ID or exact project name; defaults to the current project context |
 | `--secret` | `string` | — | webhook signing secret; generated when omitted |
 | `--url` | `string` | — | webhook endpoint URL |
@@ -283,16 +284,13 @@ Delete a webhook configuration
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--feature` | `string` | — | project feature for the webhook configuration |
 | `--project` | `string` | — | project ID or exact project name; defaults to the current project context |
 
 ### `agora project webhook events`
 
 List available webhook events for a feature
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--feature` | `string` | — | project feature whose webhook events should be listed |
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora project webhook list`
 
@@ -300,7 +298,6 @@ List webhook configurations for a project feature
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--feature` | `string` | — | project feature whose webhook configurations should be listed |
 | `--project` | `string` | — | project ID or exact project name; defaults to the current project context |
 
 ### `agora project webhook show`
@@ -309,7 +306,6 @@ Show one webhook configuration
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--feature` | `string` | — | project feature for the webhook configuration |
 | `--project` | `string` | — | project ID or exact project name; defaults to the current project context |
 | `--with-secret` | `bool` | — | include the webhook secret in the response |
 
@@ -323,7 +319,6 @@ Update a webhook configuration
 | `--disabled` | `bool` | — | disable the webhook configuration |
 | `--enabled` | `bool` | — | enable the webhook configuration |
 | `--event` | `stringArray` | `[]` | replacement webhook event key, display name, or numeric ID; repeat to subscribe to multiple events |
-| `--feature` | `string` | — | project feature for the webhook configuration |
 | `--project` | `string` | — | project ID or exact project name; defaults to the current project context |
 | `--url` | `string` | — | new webhook endpoint URL |
 
@@ -331,7 +326,7 @@ Update a webhook configuration
 
 Clone official standalone Agora quickstarts
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora quickstart create`
 
@@ -348,7 +343,7 @@ Clone an official Agora quickstart into a new directory
 
 Write framework-specific env files for a quickstart repo
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora quickstart env write`
 
@@ -372,7 +367,7 @@ List available official quickstarts
 
 Browse curated Agora workflows for humans and AI agents
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora skills list`
 
@@ -387,37 +382,37 @@ List available skills
 
 Search skills by id, title, description, or tag
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora skills show`
 
 Show one skill in detail
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora telemetry`
 
 Inspect or update telemetry preferences
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora telemetry disable`
 
 Disable telemetry
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora telemetry enable`
 
 Enable telemetry
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora telemetry status`
 
 Show telemetry status
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora upgrade`
 
@@ -431,7 +426,7 @@ Upgrade Agora CLI in place when installer-managed; otherwise print upgrade guida
 
 Show Agora CLI build information
 
-_No local flags. Inherited global flags still apply (see [Global Flags](#global-flags))._
+_No local flags. Inherited parent and global flags still apply; run `agora <command> --help` for the full flag set._
 
 ### `agora whoami`
 
