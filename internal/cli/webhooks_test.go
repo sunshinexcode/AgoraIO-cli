@@ -30,6 +30,113 @@ func TestWebhookEventKeyFromDisplayName(t *testing.T) {
 	}
 }
 
+func TestNormalizeWebhookEventsIgnoresChineseDisplayName(t *testing.T) {
+	resp := ncsEventListResponse{
+		Items: []ncsEvent{
+			{EventID: 1001, DisplayName: "Channel Created", DisplayNameCn: "频道创建", EventType: 7, Payload: `{"x":1}`},
+		},
+	}
+
+	got := normalizeWebhookEvents(resp)
+	want := []webhookEvent{
+		{ID: 1001, Key: "channel-created", DisplayName: "Channel Created", EventType: 7, Payload: `{"x":1}`},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("normalizeWebhookEvents() = %#v, want %#v", got, want)
+	}
+}
+
+func TestNormalizeWebhookConfigMapsKnownEventsOnly(t *testing.T) {
+	retry := true
+	events := []webhookEvent{
+		{ID: 1001, Key: "channel-created", DisplayName: "Channel Created"},
+		{ID: 1002, Key: "channel-deleted", DisplayName: "Channel Deleted"},
+	}
+	item := ncsConfig{
+		ConfigID:       7,
+		URL:            "https://example.com/hook",
+		URLRegion:      "na",
+		Enabled:        true,
+		EventIDs:       []int{1002, 9999, 1001},
+		Retry:          &retry,
+		UseIPWhitelist: true,
+		Secret:         "secret_123",
+	}
+
+	got := normalizeWebhookConfig(item, events)
+	if got.ConfigID != item.ConfigID || got.URL != item.URL || got.URLRegion != item.URLRegion || !got.Enabled || got.Retry != &retry || !got.UseIPWhitelist || got.Secret != item.Secret {
+		t.Fatalf("normalizeWebhookConfig() did not copy stable fields: %#v", got)
+	}
+	if !reflect.DeepEqual(got.EventIDs, item.EventIDs) {
+		t.Fatalf("EventIDs = %v, want %v", got.EventIDs, item.EventIDs)
+	}
+	wantEvents := []webhookEvent{events[1], events[0]}
+	if !reflect.DeepEqual(got.Events, wantEvents) {
+		t.Fatalf("Events = %#v, want %#v", got.Events, wantEvents)
+	}
+}
+
+func TestSelectWebhookConfigFromCreateResponsePrefersSecret(t *testing.T) {
+	resp := ncsConfigListResponse{
+		Items: []ncsConfig{
+			{ConfigID: 17, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1001}, Secret: "other_secret"},
+			{ConfigID: 42, URL: "https://almost.example.com/hook", URLRegion: "eu", EventIDs: []int{1002}, Secret: "secret_123"},
+		},
+	}
+
+	got, err := selectCreatedWebhookConfig(resp, "https://example.com/hook", "na", []int{1001}, "secret_123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ConfigID != 42 {
+		t.Fatalf("selected configId = %d, want 42", got.ConfigID)
+	}
+}
+
+func TestSelectWebhookConfigFallbackPicksNewestThenHighestID(t *testing.T) {
+	resp := ncsConfigListResponse{
+		Items: []ncsConfig{
+			{ConfigID: 17, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1001}, UpdatedAt: "2026-01-02T00:00:00Z"},
+			{ConfigID: 42, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1001}, UpdatedAt: "2026-01-03T00:00:00Z"},
+			{ConfigID: 50, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1001}, UpdatedAt: "2026-01-03T00:00:00Z"},
+			{ConfigID: 99, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1001, 1002}, UpdatedAt: "2026-01-04T00:00:00Z"},
+		},
+	}
+
+	got, err := selectCreatedWebhookConfig(resp, "https://example.com/hook", "na", []int{1001}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ConfigID != 50 {
+		t.Fatalf("selected configId = %d, want 50", got.ConfigID)
+	}
+}
+
+func TestSelectWebhookConfigReturnsNotFound(t *testing.T) {
+	_, err := selectCreatedWebhookConfig(ncsConfigListResponse{
+		Items: []ncsConfig{
+			{ConfigID: 17, URL: "https://example.com/hook", URLRegion: "eu", EventIDs: []int{1001}},
+		},
+	}, "https://example.com/hook", "na", []int{1001}, "")
+	if !hasCLIErrorCode(err, "WEBHOOK_CONFIG_NOT_FOUND") {
+		t.Fatalf("expected WEBHOOK_CONFIG_NOT_FOUND, got %T %v", err, err)
+	}
+}
+
+func TestRedactWebhookConfigSecret(t *testing.T) {
+	cfg := webhookConfig{ConfigID: 42, Secret: "secret_123"}
+
+	redacted := redactWebhookConfigSecret(cfg, false)
+	if redacted.Secret != redactedWebhookSecret {
+		t.Fatalf("redacted secret = %q, want %q", redacted.Secret, redactedWebhookSecret)
+	}
+
+	revealed := redactWebhookConfigSecret(cfg, true)
+	if revealed.Secret != cfg.Secret {
+		t.Fatalf("revealed secret = %q, want %q", revealed.Secret, cfg.Secret)
+	}
+}
+
 func TestResolveWebhookEventInputs(t *testing.T) {
 	events := []webhookEvent{
 		{ID: 30, Key: "channel-user-left", DisplayName: "Channel User Left"},

@@ -35,10 +35,161 @@ type webhookConfig struct {
 	Secret         string         `json:"secret,omitempty"`
 }
 
+type ncsEventListResponse struct {
+	Items []ncsEvent `json:"items"`
+}
+
+type ncsEvent struct {
+	EventID       int    `json:"eventId"`
+	DisplayName   string `json:"displayName"`
+	DisplayNameCn string `json:"displayNameCn"`
+	EventType     int    `json:"eventType"`
+	Payload       string `json:"payload"`
+}
+
+type ncsConfigListResponse struct {
+	Items []ncsConfig `json:"items"`
+}
+
+type ncsConfig struct {
+	ConfigID       int    `json:"configId"`
+	URL            string `json:"url"`
+	URLRegion      string `json:"urlRegion"`
+	Enabled        bool   `json:"enabled"`
+	EventIDs       []int  `json:"eventIds"`
+	Retry          *bool  `json:"retry"`
+	UseIPWhitelist bool   `json:"useIpWhitelist"`
+	Secret         string `json:"secret"`
+	CreatedAt      string `json:"createdAt"`
+	UpdatedAt      string `json:"updatedAt"`
+}
+
 func webhookEventKey(displayName string) string {
 	key := strings.ToLower(strings.TrimSpace(displayName))
 	key = webhookEventKeyInvalidChars.ReplaceAllString(key, "-")
 	return strings.Trim(key, "-")
+}
+
+func normalizeWebhookEvents(resp ncsEventListResponse) []webhookEvent {
+	events := make([]webhookEvent, 0, len(resp.Items))
+	for _, item := range resp.Items {
+		events = append(events, webhookEvent{
+			ID:          item.EventID,
+			Key:         webhookEventKey(item.DisplayName),
+			DisplayName: item.DisplayName,
+			EventType:   item.EventType,
+			Payload:     item.Payload,
+		})
+	}
+	return events
+}
+
+func normalizeWebhookConfig(item ncsConfig, events []webhookEvent) webhookConfig {
+	eventsByID := make(map[int]webhookEvent, len(events))
+	for _, event := range events {
+		eventsByID[event.ID] = event
+	}
+
+	matchedEvents := make([]webhookEvent, 0, len(item.EventIDs))
+	for _, id := range item.EventIDs {
+		if event, ok := eventsByID[id]; ok {
+			matchedEvents = append(matchedEvents, event)
+		}
+	}
+
+	eventIDs := append([]int(nil), item.EventIDs...)
+	return webhookConfig{
+		ConfigID:       item.ConfigID,
+		URL:            item.URL,
+		URLRegion:      item.URLRegion,
+		Enabled:        item.Enabled,
+		EventIDs:       eventIDs,
+		Events:         matchedEvents,
+		Retry:          item.Retry,
+		UseIPWhitelist: item.UseIPWhitelist,
+		Secret:         item.Secret,
+	}
+}
+
+func redactWebhookConfigSecret(cfg webhookConfig, reveal bool) webhookConfig {
+	if reveal || cfg.Secret == "" {
+		return cfg
+	}
+	cfg.Secret = redactedWebhookSecret
+	return cfg
+}
+
+func selectCreatedWebhookConfig(resp ncsConfigListResponse, url, urlRegion string, eventIDs []int, secret string) (ncsConfig, error) {
+	if secret != "" {
+		if match, ok := bestWebhookConfigCandidate(resp.Items, func(item ncsConfig) bool {
+			return item.Secret == secret
+		}); ok {
+			return match, nil
+		}
+	}
+
+	if match, ok := bestWebhookConfigCandidate(resp.Items, func(item ncsConfig) bool {
+		return item.URL == url &&
+			item.URLRegion == urlRegion &&
+			webhookIntSlicesEqual(item.EventIDs, eventIDs)
+	}); ok {
+		return match, nil
+	}
+
+	return ncsConfig{}, &cliError{
+		Message: "created webhook config was not found in the API response.",
+		Code:    "WEBHOOK_CONFIG_NOT_FOUND",
+	}
+}
+
+func bestWebhookConfigCandidate(items []ncsConfig, matches func(ncsConfig) bool) (ncsConfig, bool) {
+	var best ncsConfig
+	found := false
+	for _, item := range items {
+		if !matches(item) {
+			continue
+		}
+		if !found || item.UpdatedAt > best.UpdatedAt || (item.UpdatedAt == best.UpdatedAt && item.ConfigID > best.ConfigID) {
+			best = item
+			found = true
+		}
+	}
+	return best, found
+}
+
+func (a *App) listWebhookEvents(feature string) ([]webhookEvent, error) {
+	if err := validateWebhookFeature(feature); err != nil {
+		return nil, err
+	}
+	var out ncsEventListResponse
+	err := a.apiRequest("GET", "/api/cli/v1/ncs-events/"+feature, nil, nil, &out)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeWebhookEvents(out), nil
+}
+
+func (a *App) listWebhookConfigs(projectID, feature string) (ncsConfigListResponse, error) {
+	var out ncsConfigListResponse
+	err := a.apiRequest("GET", "/api/cli/v1/projects/"+projectID+"/ncs-configs/"+feature, nil, nil, &out)
+	return out, err
+}
+
+func (a *App) createWebhookConfig(projectID, feature string, body map[string]any) (ncsConfigListResponse, error) {
+	var out ncsConfigListResponse
+	err := a.apiRequest("POST", "/api/cli/v1/projects/"+projectID+"/ncs-configs/"+feature, nil, body, &out)
+	return out, err
+}
+
+func (a *App) updateWebhookConfig(projectID, feature string, configID int, body map[string]any) (ncsConfigListResponse, error) {
+	var out ncsConfigListResponse
+	err := a.apiRequest("PUT", "/api/cli/v1/projects/"+projectID+"/ncs-configs/"+feature+"/"+strconv.Itoa(configID), nil, body, &out)
+	return out, err
+}
+
+func (a *App) deleteWebhookConfig(projectID, feature string, configID int) error {
+	out := map[string]any{}
+	return a.apiRequest("DELETE", "/api/cli/v1/projects/"+projectID+"/ncs-configs/"+feature+"/"+strconv.Itoa(configID), nil, nil, &out)
 }
 
 func validateWebhookFeature(feature string) error {
