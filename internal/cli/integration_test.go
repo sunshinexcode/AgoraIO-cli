@@ -900,7 +900,7 @@ func TestProjectWebhookUpdateSecretFlagRejected(t *testing.T) {
 	persistSessionForIntegration(t, configHome)
 
 	result := runCLI(t, []string{"project", "webhook", "update", "42", "--feature", "rtc", "--secret", "secret_123", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
-	if result.exitCode == 0 || !strings.Contains(result.stderr, "unknown flag: --secret") {
+	if result.exitCode == 0 || !strings.Contains(result.stdout, "unknown flag: --secret") || result.stderr != "" {
 		t.Fatalf("expected unknown --secret flag, got exit=%d stdout=%s stderr=%s", result.exitCode, result.stdout, result.stderr)
 	}
 }
