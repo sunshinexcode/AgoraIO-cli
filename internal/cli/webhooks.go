@@ -19,18 +19,18 @@ type webhookEvent struct {
 	ID          int    `json:"id"`
 	Key         string `json:"key"`
 	DisplayName string `json:"displayName"`
-	EventType   string `json:"eventType"`
-	Payload     any    `json:"payload,omitempty"`
+	EventType   int    `json:"eventType"`
+	Payload     string `json:"payload,omitempty"`
 }
 
 type webhookConfig struct {
-	ConfigID       string         `json:"configId"`
+	ConfigID       int            `json:"configId"`
 	URL            string         `json:"url"`
 	URLRegion      string         `json:"urlRegion"`
 	Enabled        bool           `json:"enabled"`
 	EventIDs       []int          `json:"eventIds"`
 	Events         []webhookEvent `json:"events,omitempty"`
-	Retry          any            `json:"retry,omitempty"`
+	Retry          *bool          `json:"retry,omitempty"`
 	UseIPWhitelist bool           `json:"useIpWhitelist"`
 	Secret         string         `json:"secret,omitempty"`
 }
