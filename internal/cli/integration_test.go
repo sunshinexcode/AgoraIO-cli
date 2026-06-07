@@ -434,7 +434,7 @@ func newFakeCLIBFF() *fakeCLIBFF {
 		api.mu.Unlock()
 
 		switch {
-		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/cli/v1/ncs-events/"):
+		case r.Method == http.MethodGet && isFakeNCSEventsPath(r.URL.Path):
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"items": []map[string]any{
 					{
@@ -490,14 +490,15 @@ func newFakeCLIBFF() *fakeCLIBFF {
 			project := buildFakeProject(name, projectID, appID, "global")
 			api.projects[projectID] = &project
 			_ = json.NewEncoder(w).Encode(project)
-		case strings.HasPrefix(r.URL.Path, "/api/cli/v1/projects/") && strings.Contains(r.URL.Path, "/ncs-configs/"):
+		case isFakeNCSConfigsPath(r.URL.Path):
 			api.handleFakeNCSConfigs(w, r)
+		case strings.HasPrefix(r.URL.Path, "/api/cli/v1/projects/") && strings.Contains(r.URL.Path, "/ncs-configs/"):
+			http.NotFound(w, r)
 		case strings.HasPrefix(r.URL.Path, "/api/cli/v1/projects/") && !strings.Contains(r.URL.Path, "/uap-configs/") && !strings.HasSuffix(r.URL.Path, "/rtm2-config"):
 			projectID := strings.TrimPrefix(r.URL.Path, "/api/cli/v1/projects/")
 			project, ok := api.projects[projectID]
 			if !ok {
-				w.WriteHeader(http.StatusNotFound)
-				_, _ = io.WriteString(w, `{"code":"NOT_FOUND","message":"resource not found","requestId":"req-not-found"}`)
+				writeFakeProjectNotFound(w)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(project)
@@ -561,24 +562,40 @@ func newFakeCLIBFF() *fakeCLIBFF {
 }
 
 func (api *fakeCLIBFF) handleFakeNCSConfigs(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) < 7 {
-		http.NotFound(w, r)
-		return
-	}
+	parts := fakePathParts(r.URL.Path)
 	projectID := parts[4]
 	feature := parts[6]
 	key := projectID + "/" + feature
 
 	switch r.Method {
 	case http.MethodGet:
-		_ = json.NewEncoder(w).Encode(map[string]any{"items": api.ncsConfigs[key]})
+		if len(parts) != 7 {
+			http.NotFound(w, r)
+			return
+		}
+		api.mu.Lock()
+		if _, ok := api.projects[projectID]; !ok {
+			api.mu.Unlock()
+			writeFakeProjectNotFound(w)
+			return
+		}
+		items := append([]fakeNCSConfig(nil), api.ncsConfigs[key]...)
+		api.mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
 	case http.MethodPost:
+		if len(parts) != 7 {
+			http.NotFound(w, r)
+			return
+		}
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		api.mu.Lock()
+		if _, ok := api.projects[projectID]; !ok {
+			api.mu.Unlock()
+			writeFakeProjectNotFound(w)
+			return
+		}
 		api.ncsBodies = append(api.ncsBodies, body)
-		api.mu.Unlock()
 		config := fakeNCSConfig{
 			ConfigID:       42 + len(api.ncsConfigs[key]),
 			URL:            stringFromBody(body, "url"),
@@ -592,9 +609,11 @@ func (api *fakeCLIBFF) handleFakeNCSConfigs(w http.ResponseWriter, r *http.Reque
 			UpdatedAt:      "2026-06-07T00:00:01Z",
 		}
 		api.ncsConfigs[key] = append(api.ncsConfigs[key], config)
-		_ = json.NewEncoder(w).Encode(map[string]any{"items": api.ncsConfigs[key]})
+		items := append([]fakeNCSConfig(nil), api.ncsConfigs[key]...)
+		api.mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
 	case http.MethodPut:
-		if len(parts) < 8 {
+		if len(parts) != 8 {
 			http.NotFound(w, r)
 			return
 		}
@@ -602,8 +621,12 @@ func (api *fakeCLIBFF) handleFakeNCSConfigs(w http.ResponseWriter, r *http.Reque
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		api.mu.Lock()
+		if _, ok := api.projects[projectID]; !ok {
+			api.mu.Unlock()
+			writeFakeProjectNotFound(w)
+			return
+		}
 		api.ncsBodies = append(api.ncsBodies, body)
-		api.mu.Unlock()
 		for i := range api.ncsConfigs[key] {
 			if api.ncsConfigs[key][i].ConfigID != configID {
 				continue
@@ -625,13 +648,21 @@ func (api *fakeCLIBFF) handleFakeNCSConfigs(w http.ResponseWriter, r *http.Reque
 			}
 			api.ncsConfigs[key][i].UpdatedAt = "2026-06-07T00:00:02Z"
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"items": api.ncsConfigs[key]})
+		items := append([]fakeNCSConfig(nil), api.ncsConfigs[key]...)
+		api.mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
 	case http.MethodDelete:
-		if len(parts) < 8 {
+		if len(parts) != 8 {
 			http.NotFound(w, r)
 			return
 		}
 		configID, _ := strconv.Atoi(parts[7])
+		api.mu.Lock()
+		if _, ok := api.projects[projectID]; !ok {
+			api.mu.Unlock()
+			writeFakeProjectNotFound(w)
+			return
+		}
 		next := []fakeNCSConfig{}
 		for _, item := range api.ncsConfigs[key] {
 			if item.ConfigID != configID {
@@ -639,10 +670,45 @@ func (api *fakeCLIBFF) handleFakeNCSConfigs(w http.ResponseWriter, r *http.Reque
 			}
 		}
 		api.ncsConfigs[key] = next
+		api.mu.Unlock()
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func fakePathParts(path string) []string {
+	return strings.Split(strings.Trim(path, "/"), "/")
+}
+
+func isFakeNCSEventsPath(path string) bool {
+	parts := fakePathParts(path)
+	return len(parts) == 5 &&
+		parts[0] == "api" &&
+		parts[1] == "cli" &&
+		parts[2] == "v1" &&
+		parts[3] == "ncs-events" &&
+		parts[4] != ""
+}
+
+func isFakeNCSConfigsPath(path string) bool {
+	parts := fakePathParts(path)
+	if len(parts) != 7 && len(parts) != 8 {
+		return false
+	}
+	return parts[0] == "api" &&
+		parts[1] == "cli" &&
+		parts[2] == "v1" &&
+		parts[3] == "projects" &&
+		parts[4] != "" &&
+		parts[5] == "ncs-configs" &&
+		parts[6] != "" &&
+		(len(parts) == 7 || parts[7] != "")
+}
+
+func writeFakeProjectNotFound(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = io.WriteString(w, `{"code":"NOT_FOUND","message":"resource not found","requestId":"req-not-found"}`)
 }
 
 func fakeBoolPtr(value bool) *bool {
