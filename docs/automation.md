@@ -970,6 +970,22 @@ Each event item includes:
 - `items`
   Array of webhook config objects.
 
+Each list item includes:
+- `configId`
+- `url`
+- `urlRegion`
+  Delivery region for webhook callbacks: `cn`, `sea`, `na`, or `eu`.
+- `enabled`
+  Canonical webhook state field. Webhook JSON does not emit a string `status`.
+- `eventIds`
+- `events`
+  Event details that match `eventIds` when available.
+- `retry`
+  Retry behavior when returned by the API. This field is read-only in the CLI.
+- `useIpWhitelist`
+- `secret`
+  Present when the backend returns a secret, redacted as `********`. `list` never emits a raw secret.
+
 `project webhook show`, `project webhook create`, and `project webhook update` required `data` fields:
 - `action`
   One of `webhook-show`, `webhook-create`, or `webhook-update`.
