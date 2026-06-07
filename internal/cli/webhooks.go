@@ -120,19 +120,21 @@ func redactWebhookConfigSecret(cfg webhookConfig, reveal bool) webhookConfig {
 }
 
 func selectCreatedWebhookConfig(resp ncsConfigListResponse, url, urlRegion string, eventIDs []int, secret string) (ncsConfig, error) {
+	matchesRequestedShape := func(item ncsConfig) bool {
+		return item.URL == url &&
+			item.URLRegion == urlRegion &&
+			webhookIntSetEqual(item.EventIDs, eventIDs)
+	}
+
 	if secret != "" {
 		if match, ok := bestWebhookConfigCandidate(resp.Items, func(item ncsConfig) bool {
-			return item.Secret == secret
+			return item.Secret == secret && matchesRequestedShape(item)
 		}); ok {
 			return match, nil
 		}
 	}
 
-	if match, ok := bestWebhookConfigCandidate(resp.Items, func(item ncsConfig) bool {
-		return item.URL == url &&
-			item.URLRegion == urlRegion &&
-			webhookIntSlicesEqual(item.EventIDs, eventIDs)
-	}); ok {
+	if match, ok := bestWebhookConfigCandidate(resp.Items, matchesRequestedShape); ok {
 		return match, nil
 	}
 
@@ -247,6 +249,17 @@ func webhookIntSlicesEqual(a, b []int) bool {
 		}
 	}
 	return true
+}
+
+func webhookIntSetEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	sortedA := append([]int(nil), a...)
+	sortedB := append([]int(nil), b...)
+	sort.Ints(sortedA)
+	sort.Ints(sortedB)
+	return webhookIntSlicesEqual(sortedA, sortedB)
 }
 
 func resolveWebhookEventIDs(events []webhookEvent, inputs []string, feature string) ([]int, error) {

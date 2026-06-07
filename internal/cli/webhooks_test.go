@@ -80,11 +80,44 @@ func TestSelectWebhookConfigFromCreateResponsePrefersSecret(t *testing.T) {
 	resp := ncsConfigListResponse{
 		Items: []ncsConfig{
 			{ConfigID: 17, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1001}, Secret: "other_secret"},
-			{ConfigID: 42, URL: "https://almost.example.com/hook", URLRegion: "eu", EventIDs: []int{1002}, Secret: "secret_123"},
+			{ConfigID: 42, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1001}, Secret: "secret_123"},
 		},
 	}
 
 	got, err := selectCreatedWebhookConfig(resp, "https://example.com/hook", "na", []int{1001}, "secret_123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ConfigID != 42 {
+		t.Fatalf("selected configId = %d, want 42", got.ConfigID)
+	}
+}
+
+func TestSelectWebhookConfigDoesNotSelectSecretWithWrongShape(t *testing.T) {
+	resp := ncsConfigListResponse{
+		Items: []ncsConfig{
+			{ConfigID: 99, URL: "https://old.example.com/hook", URLRegion: "eu", EventIDs: []int{1002}, Secret: "secret_123", UpdatedAt: "2026-01-04T00:00:00Z"},
+			{ConfigID: 42, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1001}, Secret: "secret_123", UpdatedAt: "2026-01-03T00:00:00Z"},
+		},
+	}
+
+	got, err := selectCreatedWebhookConfig(resp, "https://example.com/hook", "na", []int{1001}, "secret_123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ConfigID != 42 {
+		t.Fatalf("selected configId = %d, want 42", got.ConfigID)
+	}
+}
+
+func TestSelectWebhookConfigFallbackMatchesEventIDsAsSet(t *testing.T) {
+	resp := ncsConfigListResponse{
+		Items: []ncsConfig{
+			{ConfigID: 42, URL: "https://example.com/hook", URLRegion: "na", EventIDs: []int{1002, 1001}},
+		},
+	}
+
+	got, err := selectCreatedWebhookConfig(resp, "https://example.com/hook", "na", []int{1001, 1002}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
