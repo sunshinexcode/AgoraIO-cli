@@ -138,11 +138,11 @@ type webhookConfig struct {
 }
 ```
 
-The backend response may include additional fields such as `appId`, `productId`, `projectId`, `vendorId`, `internal`, `createdAt`, and `updatedAt`. The CLI preserves stable fields needed by automation and support, but pretty output stays focused on project, feature, config ID, URL, delivery region, enabled state, and event names.
+The backend response may include additional fields such as `appId`, `productId`, `projectId`, `vendorId`, `internal`, `createdAt`, and `updatedAt`. The CLI preserves stable fields needed by automation and support, but pretty output stays focused on project, feature, config ID, URL, delivery region, enabled state, and event keys.
 
 `retry` is read-only in v1. The CLI includes `retry` in output when the backend returns it, but create and update requests do not send a `retry` field and do not expose a retry flag.
 
-The event API returns an `items` array. Each backend event has `eventId`, `displayName`, `displayNameCn`, `eventType`, and `payload`. The CLI uses `eventId` for config `eventIds`; `eventType` is retained only as event metadata for now because the config create/update schema labels `eventIds` as `event.id`. The implementation must not send `eventType` in config bodies.
+The event API returns an `items` array. Each backend event has `eventId`, `displayName`, `displayNameCn`, `eventType`, and `payload`. The CLI uses `eventId` for config `eventIds`; `eventType` is retained only as event metadata for now because the config create/update schema labels `eventIds` as `event.id`. The implementation must not send `eventType` in config bodies. Before coding against production, confirm with the backend owner that config `eventIds` must be populated from `eventId`, not `eventType`.
 
 Create requests send all backend-required fields:
 
@@ -173,7 +173,7 @@ List, create, and update responses are `NcsConfigListResponse` objects with an `
 - `list` returns all normalized items.
 - `show` lists configs and selects the requested `configId`.
 - `update` selects the requested `configId` from the PUT response.
-- `create` selects the item matching the requested URL, delivery region, event IDs, and secret. If multiple items match, choose the newest item by `updatedAt` when present, otherwise the highest `configId`.
+- `create` selects the item matching the generated or provided secret, requested URL, delivery region, and event IDs. Secret is expected to be the strongest match because the create response currently echoes it. If the backend stops returning `secret` on create, fall back to URL, delivery region, and event IDs; if multiple items match, choose the newest item by `updatedAt` when present, otherwise the highest `configId`.
 
 ## JSON Contract
 
@@ -186,6 +186,8 @@ All commands use the existing JSON envelope. Stable command labels:
 - `project webhook update`
 - `project webhook delete`
 
+`enabled` is the canonical webhook state field in every webhook command payload. The CLI does not expose a separate string `status` for webhook enabled state; automation should branch on `enabled`.
+
 Example create data:
 
 ```json
@@ -195,7 +197,7 @@ Example create data:
   "projectName": "my-agent-demo",
   "feature": "rtc",
   "configId": 42,
-  "status": "enabled",
+  "enabled": true,
   "url": "https://example.com/webhook",
   "urlRegion": "na",
   "eventIds": [1001],
@@ -220,7 +222,7 @@ Safe branch fields for automation:
 - `projectId`
 - `feature`
 - `configId`
-- `status`
+- `enabled`
 - `urlRegion`
 - `eventIds`
 
@@ -296,6 +298,7 @@ MCP inputs use feature names, event keys or event IDs, config IDs, URL, delivery
    - secret pattern validation
    - event key generation
    - event name/ID resolution
+   - explicit backend confirmation that config `eventIds` uses event `eventId`, not `eventType`
 2. Add typed API helpers in `internal/cli/webhooks.go`.
 3. Register `project webhook` commands in `commands.go`.
 4. Add pretty render cases in `render.go`.
