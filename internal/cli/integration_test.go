@@ -941,7 +941,7 @@ func TestProjectWebhookHelpShowsFeatureAndExamples(t *testing.T) {
 	}
 
 	create := runCLI(t, []string{"project", "webhook", "create", "--help"}, cliRunOptions{})
-	if create.exitCode != 0 || !strings.Contains(create.stdout, "agora project webhook create --feature rtc") || !strings.Contains(create.stdout, "agora project webhook --feature rtc create") || !strings.Contains(create.stdout, "--event 1001 --event 1002") {
+	if create.exitCode != 0 || !strings.Contains(create.stdout, "agora project webhook create --feature rtc") || !strings.Contains(create.stdout, "agora project webhook --feature rtc create") || !strings.Contains(create.stdout, "--events 1001,1002") || strings.Contains(create.stdout, "--event ") {
 		t.Fatalf("unexpected project webhook create help: exit=%d stdout=%s stderr=%s", create.exitCode, create.stdout, create.stderr)
 	}
 }
@@ -978,7 +978,7 @@ func TestProjectWebhookCreateJSON(t *testing.T) {
 	api.projects[project.ProjectID] = &project
 	persistSessionForIntegration(t, configHome)
 
-	result := runCLI(t, []string{"project", "webhook", "create", "--project", "demo", "--feature", "rtc", "--url", "https://example.com/webhook", "--event", "channel-created", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
+	result := runCLI(t, []string{"project", "webhook", "create", "--project", "demo", "--feature", "rtc", "--url", "https://example.com/webhook", "--events", "channel-created,1002", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
 	if result.exitCode != 0 || !strings.Contains(result.stdout, `"command":"project webhook create"`) || !strings.Contains(result.stdout, `"configId":42`) || !strings.Contains(result.stdout, `"urlRegion":"na"`) || !strings.Contains(result.stdout, `"enabled":true`) || !strings.Contains(result.stdout, `"secret":"`) || strings.Contains(result.stdout, "displayNameCn") {
 		t.Fatalf("unexpected webhook create result: exit=%d stdout=%s stderr=%s", result.exitCode, result.stdout, result.stderr)
 	}
@@ -989,12 +989,29 @@ func TestProjectWebhookCreateJSON(t *testing.T) {
 	if body["url"] != "https://example.com/webhook" || body["urlRegion"] != "na" || body["enabled"] != true || body["useIpWhitelist"] != false {
 		t.Fatalf("unexpected create body: %#v", body)
 	}
-	if got := fakeEventIDsFromValue(body["eventIds"]); !webhookIntSlicesEqual(got, []int{1001}) {
-		t.Fatalf("expected create body to use eventId 1001, got %#v", body["eventIds"])
+	if got := fakeEventIDsFromValue(body["eventIds"]); !webhookIntSlicesEqual(got, []int{1001, 1002}) {
+		t.Fatalf("expected create body to use eventIds 1001 and 1002, got %#v", body["eventIds"])
 	}
 	secret, _ := body["secret"].(string)
 	if !webhookSecretPattern.MatchString(secret) {
 		t.Fatalf("expected generated secret matching backend pattern, got %#v", body)
+	}
+}
+
+func TestProjectWebhookCreateRejectsSingularEventFlag(t *testing.T) {
+	configHome := t.TempDir()
+	api := newFakeCLIBFF()
+	defer api.server.Close()
+	project := buildFakeProject("demo", "prj_0001", "app_0001", "global")
+	api.projects[project.ProjectID] = &project
+	persistSessionForIntegration(t, configHome)
+
+	result := runCLI(t, []string{"project", "webhook", "create", "--project", "demo", "--feature", "rtc", "--url", "https://example.com/webhook", "--event", "1001", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
+	if result.exitCode == 0 || !strings.Contains(result.stdout, "unknown flag: --event") || result.stderr != "" {
+		t.Fatalf("expected singular --event flag to be rejected, got exit=%d stdout=%s stderr=%s", result.exitCode, result.stdout, result.stderr)
+	}
+	if len(api.ncsBodies) != 0 {
+		t.Fatalf("rejected singular --event flag should not POST, got bodies %#v", api.ncsBodies)
 	}
 }
 
@@ -1038,6 +1055,37 @@ func TestProjectWebhookUpdateReadMergePut(t *testing.T) {
 	stored := api.ncsConfigs["prj_0001/rtc"][0]
 	if stored.Secret != "secret_123" || stored.URL != "https://new.example/webhook" {
 		t.Fatalf("fake PUT should preserve secret and update request fields, got %#v", stored)
+	}
+}
+
+func TestProjectWebhookUpdateEventsCommaSeparated(t *testing.T) {
+	configHome := t.TempDir()
+	api := newFakeCLIBFF()
+	defer api.server.Close()
+	project := buildFakeProject("demo", "prj_0001", "app_0001", "global")
+	api.projects[project.ProjectID] = &project
+	api.ncsConfigs["prj_0001/rtc"] = []fakeNCSConfig{{
+		ConfigID:       42,
+		URL:            "https://old.example/webhook",
+		URLRegion:      "na",
+		Enabled:        true,
+		EventIDs:       []int{1001},
+		UseIPWhitelist: false,
+		Secret:         "secret_123",
+		CreatedAt:      "2026-06-07T00:00:01Z",
+		UpdatedAt:      "2026-06-07T00:00:01Z",
+	}}
+	persistSessionForIntegration(t, configHome)
+
+	result := runCLI(t, []string{"project", "webhook", "update", "42", "--project", "demo", "--feature", "rtc", "--events", "1002, channel-created", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
+	if result.exitCode != 0 || !strings.Contains(result.stdout, `"command":"project webhook update"`) {
+		t.Fatalf("unexpected webhook update result: exit=%d stdout=%s stderr=%s", result.exitCode, result.stdout, result.stderr)
+	}
+	if len(api.ncsBodies) != 1 {
+		t.Fatalf("expected one PUT body, got %#v", api.ncsBodies)
+	}
+	if got := fakeEventIDsFromValue(api.ncsBodies[0]["eventIds"]); !webhookIntSlicesEqual(got, []int{1001, 1002}) {
+		t.Fatalf("expected PUT body to use comma-separated event IDs, got %#v", api.ncsBodies[0]["eventIds"])
 	}
 }
 
@@ -1155,12 +1203,12 @@ func TestProjectWebhookCreateExplicitSecretAndRejectInvalidSecret(t *testing.T) 
 	api.projects[project.ProjectID] = &project
 	persistSessionForIntegration(t, configHome)
 
-	ok := runCLI(t, []string{"project", "webhook", "create", "--project", "demo", "--feature", "rtc", "--url", "https://example.com/webhook", "--event", "1001", "--secret", "secret_123", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
+	ok := runCLI(t, []string{"project", "webhook", "create", "--project", "demo", "--feature", "rtc", "--url", "https://example.com/webhook", "--events", "1001", "--secret", "secret_123", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
 	if ok.exitCode != 0 || !strings.Contains(ok.stdout, `"secret":"secret_123"`) || strings.Contains(ok.stdout, "displayNameCn") {
 		t.Fatalf("expected explicit secret success, got exit=%d stdout=%s stderr=%s", ok.exitCode, ok.stdout, ok.stderr)
 	}
 
-	bad := runCLI(t, []string{"project", "webhook", "create", "--project", "demo", "--feature", "rtc", "--url", "https://example.com/webhook", "--event", "1001", "--secret", "this-secret-is-too-long-for-the-backend-pattern", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
+	bad := runCLI(t, []string{"project", "webhook", "create", "--project", "demo", "--feature", "rtc", "--url", "https://example.com/webhook", "--events", "1001", "--secret", "this-secret-is-too-long-for-the-backend-pattern", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
 	if bad.exitCode == 0 || !strings.Contains(bad.stdout, `"code":"WEBHOOK_SECRET_INVALID"`) || bad.stderr != "" {
 		t.Fatalf("expected invalid secret error, got exit=%d stdout=%s stderr=%s", bad.exitCode, bad.stdout, bad.stderr)
 	}
@@ -1177,7 +1225,7 @@ func TestProjectWebhookCreateDefaultsCNDeliveryRegion(t *testing.T) {
 	api.projects[project.ProjectID] = &project
 	persistSessionForIntegration(t, configHome)
 
-	result := runCLI(t, []string{"project", "webhook", "create", "--project", "demo-cn", "--feature", "rtc", "--url", "https://example.cn/webhook", "--event", "channel-created", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
+	result := runCLI(t, []string{"project", "webhook", "create", "--project", "demo-cn", "--feature", "rtc", "--url", "https://example.cn/webhook", "--events", "channel-created", "--json"}, cliRunOptions{env: webhookTestEnv(configHome, api.baseURL)})
 	if result.exitCode != 0 || !strings.Contains(result.stdout, `"urlRegion":"cn"`) || strings.Contains(result.stdout, "displayNameCn") {
 		t.Fatalf("expected cn default region, got exit=%d stdout=%s stderr=%s", result.exitCode, result.stdout, result.stderr)
 	}

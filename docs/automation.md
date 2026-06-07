@@ -936,7 +936,7 @@ Examples:
 
 ```bash
 ./agora project webhook events --feature rtc --json
-./agora project webhook create --project my-project --feature rtc --url https://example.com/webhook --event channel-created --json
+./agora project webhook create --project my-project --feature rtc --url https://example.com/webhook --events channel-created,user-joined --json
 ./agora project webhook show 42 --project my-project --feature rtc --with-secret --json
 ./agora project webhook update 42 --project my-project --feature rtc --url https://example.com/webhook2 --json
 ./agora project webhook delete 42 --project my-project --feature rtc --yes --json
@@ -1011,7 +1011,7 @@ Optional top-level `data` fields for `show`, `create`, and `update` (also presen
 - `retry`
   Retry behavior when returned by the API. This field is read-only in the CLI and appears at `data.retry` and `data.config.retry`; `list` exposes it per item as `items[].retry`.
 
-`project webhook update` preserves existing values for omitted mutable fields. Use `--url`, repeated `--event`, `--delivery-region`, `--enabled`, or `--disabled` to replace only those fields. `update` does not rotate or emit the raw secret.
+`project webhook create` requires `--events <event-id-or-key>[,<event-id-or-key>...]`. `project webhook update` preserves existing values for omitted mutable fields. Use `--url`, `--events`, `--delivery-region`, `--enabled`, or `--disabled` to replace only those fields. `update` does not rotate or emit the raw secret.
 
 `project webhook delete` required `data` fields:
 - `action`

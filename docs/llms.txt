@@ -91,7 +91,7 @@ agora project doctor --quiet
 ### Project Webhooks
 ```
 agora project webhook events --feature rtc --json
-agora project webhook create --project <project-id> --feature rtc --url https://example.com/webhook --event channel-created --json
+agora project webhook create --project <project-id> --feature rtc --url https://example.com/webhook --events channel-created,user-joined --json
 agora project webhook list --project <project-id> --feature rtc --json
 agora project webhook delete <config-id> --project <project-id> --feature rtc --yes --json
 ```

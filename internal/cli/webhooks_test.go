@@ -231,6 +231,14 @@ func TestWebhookResolveEventInputsIgnoresEmptyValues(t *testing.T) {
 	}
 }
 
+func TestNonEmptyWebhookEventInputsSplitsCommaSeparatedValues(t *testing.T) {
+	got := nonEmptyWebhookEventInputs([]string{"1001, 1002,, channel-created ", "  "})
+	want := []string{"1001", "1002", "channel-created"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("nonEmptyWebhookEventInputs() = %v, want %v", got, want)
+	}
+}
+
 func TestWebhookResolveEventInputsDoesNotUseGeneratedDisplayNameKey(t *testing.T) {
 	events := []webhookEvent{
 		{ID: 10, Key: "backend-event-key", DisplayName: "Display Name"},

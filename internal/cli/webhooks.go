@@ -630,8 +630,10 @@ func findNCSConfigByID(items []ncsConfig, configID int) (ncsConfig, error) {
 func nonEmptyWebhookEventInputs(inputs []string) []string {
 	out := make([]string, 0, len(inputs))
 	for _, input := range inputs {
-		if trimmed := strings.TrimSpace(input); trimmed != "" {
-			out = append(out, trimmed)
+		for _, part := range strings.Split(input, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				out = append(out, trimmed)
+			}
 		}
 	}
 	return out
