@@ -144,7 +144,7 @@ The backend response may include additional fields such as `appId`, `productId`,
 
 `retry` is read-only in v1. The CLI includes `retry` in output when the backend returns it, but create and update requests do not send a `retry` field and do not expose a retry flag.
 
-The event API returns an `items` array. Each backend event has `eventId`, `displayName`, `displayNameCn`, `eventType`, and `payload`. The CLI ignores `displayNameCn` and does not surface it in any output. The CLI uses `eventId` for config `eventIds`; `eventType` is retained only as event metadata for now because the config create/update schema labels `eventIds` as `event.id`. The implementation must not send `eventType` in config bodies. Before coding against production, confirm with the backend owner that config `eventIds` must be populated from `eventId`, not `eventType`.
+The event API returns an `items` array. Each backend event has `eventId`, `displayName`, `displayNameCn`, `eventType`, and `payload`. The CLI ignores `displayNameCn` and does not surface it in any output. The CLI uses `eventId` for config `eventIds`; `eventType` is retained only as event metadata for now because the config create/update schema labels `eventIds` as `event.id`. The implementation must not send `eventType` in config bodies. Backend owner confirmation: config `eventIds` are populated from event `eventId`, not `eventType`.
 
 Create requests send all backend-required fields:
 
@@ -305,7 +305,6 @@ MCP tool calls have no TTY, so the interactive delete prompt cannot apply. `agor
    - secret pattern validation
    - event key generation
    - event key/ID resolution
-   - explicit backend confirmation that config `eventIds` uses event `eventId`, not `eventType`
 2. Add typed API helpers in `internal/cli/webhooks.go`.
 3. Register `project webhook` commands in `commands.go`.
 4. Add pretty render cases in `render.go`.
