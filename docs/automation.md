@@ -989,11 +989,11 @@ Each event item includes:
 - `config`
   Nested webhook config object with the same config fields.
 
-Optional config fields:
+Optional top-level `data` fields for `show`, `create`, and `update` (also present in the nested `config` object when set):
 - `secret`
-  Webhook signing secret. For `create`, the secret is generated when `--secret` is omitted and returned in JSON so automation can store it. For `list`, `show`, and `update`, secrets are redacted as `********` unless the command supports and receives `--with-secret`.
+  Webhook signing secret. `create` returns the generated or caller-provided secret at `data.secret` and `data.config.secret` so automation can store it. `show` returns the raw secret only with `--with-secret`; otherwise it redacts `data.secret` and `data.config.secret` as `********`. `update` does not rotate secrets; when the backend returns a secret, `update` emits the redacted value. `list` has no top-level `secret`; item secrets are redacted as `items[].secret == "********"`.
 - `retry`
-  Retry behavior when returned by the API.
+  Retry behavior when returned by the API. This field is read-only in the CLI and appears at `data.retry` and `data.config.retry`; `list` exposes it per item as `items[].retry`.
 
 `project webhook update` preserves existing values for omitted mutable fields. Use `--url`, repeated `--event`, `--delivery-region`, `--enabled`, or `--disabled` to replace only those fields. `update` does not rotate or emit the raw secret.
 
