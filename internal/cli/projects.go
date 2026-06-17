@@ -140,13 +140,29 @@ func (a *App) resolveProjectTargetFrom(explicit, startPath string) (projectTarge
 	if binding, ok, _, err := detectLocalProjectBindingFrom(startPath); err != nil {
 		return projectTarget{}, err
 	} else if ok && binding.ProjectID != "" {
+		// A repo-local binding pins both a project and the region that
+		// project lives in. The session context, meanwhile, carries the
+		// region the user last logged into. If the two disagree we must
+		// not silently route the request: the binding's project does not
+		// exist on the session's control plane, so the request would fail
+		// with a confusing "project not found". Fail fast with actionable
+		// guidance instead. An empty session region (fresh login default)
+		// is treated as "no opinion" and does not conflict.
+		bindingRegion := strings.TrimSpace(binding.Region)
+		sessionRegion := strings.TrimSpace(ctx.CurrentRegion)
+		if bindingRegion != "" && sessionRegion != "" && !strings.EqualFold(bindingRegion, sessionRegion) {
+			return projectTarget{}, &cliError{
+				Message: fmt.Sprintf("This repo is bound to a %s project (.agora/project.json), but you are logged into %s. Run `agora login --region %s` to switch, or pass --project to override.", bindingRegion, sessionRegion, bindingRegion),
+				Code:    "PROJECT_REGION_MISMATCH",
+			}
+		}
 		project, err := a.getProject(binding.ProjectID)
 		if err != nil {
 			return projectTarget{}, err
 		}
-		region := binding.Region
+		region := bindingRegion
 		if region == "" {
-			region = ctx.CurrentRegion
+			region = sessionRegion
 		}
 		if region == "" {
 			region = "global"

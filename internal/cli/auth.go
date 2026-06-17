@@ -29,7 +29,17 @@ const (
 )
 
 func (a *App) login(noBrowser bool, region string, progress progressEmitter) (map[string]any, error) {
-	config := a.oauthConfigForRegion(region)
+	// Resolve the effective login region exactly once. An explicit --region
+	// flag (global or cn) wins; otherwise a flag-less login means global. We
+	// intentionally do NOT carry over a previously preferred region: the
+	// resolved value below drives both the OAuth host and the persisted
+	// context, so any divergence would leave the session pointed at one
+	// control plane while its token was issued by another.
+	loginRegion := "global"
+	if region == "cn" {
+		loginRegion = "cn"
+	}
+	config := a.oauthConfigForRegion(loginRegion)
 	pair, err := generatePKCE()
 	if err != nil {
 		return nil, err
@@ -81,23 +91,33 @@ func (a *App) login(noBrowser bool, region string, progress progressEmitter) (ma
 		return nil, err
 	}
 	progress.emit("oauth:complete", "Session stored", nil)
-	ctx, err := loadContext(a.env)
-	if err != nil {
+	if err := a.resetSessionRuntimeState(loginRegion); err != nil {
 		return nil, err
 	}
-	nextRegion := ctx.PreferredRegion
-	if nextRegion == "" {
-		nextRegion = "global"
+	return map[string]any{"action": "login", "expiresAt": token.ExpiresAt, "region": loginRegion, "scope": token.Scope, "status": "authenticated"}, nil
+}
+
+func (a *App) resetSessionRuntimeState(loginRegion string) error {
+	// Rebuild the session-scoped runtime context from scratch using the
+	// region resolved at login time (the same value that selected the OAuth
+	// host), so the persisted region can never disagree with the control
+	// plane that issued the token.
+	rebuilt := projectContext{
+		CurrentProjectID:   nil,
+		CurrentProjectName: nil,
+		CurrentRegion:      loginRegion,
+		PreferredRegion:    loginRegion,
 	}
-	if region == "global" || region == "cn" {
-		nextRegion = region
+	if err := saveContext(a.env, rebuilt); err != nil {
+		return err
 	}
-	ctx.CurrentRegion = nextRegion
-	ctx.PreferredRegion = nextRegion
-	if err := saveContext(a.env, ctx); err != nil {
-		return nil, err
-	}
-	return map[string]any{"action": "login", "expiresAt": token.ExpiresAt, "region": nextRegion, "scope": token.Scope, "status": "authenticated"}, nil
+
+	// Logging in (or switching regions) discards the previous project
+	// selection and cached project list so a freshly authenticated session
+	// never routes commands or tab-completion through stale control-plane
+	// state. config.json and logs are intentionally left untouched.
+	_ = clearProjectListCache(a.env)
+	return nil
 }
 
 func (a *App) logout() (map[string]any, error) {
