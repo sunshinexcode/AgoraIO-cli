@@ -104,10 +104,10 @@ func TestInstallDoctorNetworkEndpointsFollowCurrentRegion(t *testing.T) {
 		if len(endpoints) != 2 {
 			t.Fatalf("expected 2 endpoints, got %+v", endpoints)
 		}
-		if endpoints[0].url != globalAPIBaseURL {
+		if endpoints[0].url != apiBaseURL {
 			t.Fatalf("expected global api endpoint, got %q", endpoints[0].url)
 		}
-		if endpoints[1].url != globalOAuthBaseURL {
+		if endpoints[1].url != oauthBaseURL {
 			t.Fatalf("expected global oauth endpoint, got %q", endpoints[1].url)
 		}
 	})
@@ -125,10 +125,10 @@ func TestInstallDoctorNetworkEndpointsFollowCurrentRegion(t *testing.T) {
 		if len(endpoints) != 2 {
 			t.Fatalf("expected 2 endpoints, got %+v", endpoints)
 		}
-		if endpoints[0].url != cnAPIBaseURL {
+		if endpoints[0].url != apiBaseURLCN {
 			t.Fatalf("expected cn api endpoint, got %q", endpoints[0].url)
 		}
-		if endpoints[1].url != cnOAuthBaseURL {
+		if endpoints[1].url != oauthBaseURLCN {
 			t.Fatalf("expected cn oauth endpoint, got %q", endpoints[1].url)
 		}
 	})

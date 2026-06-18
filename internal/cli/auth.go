@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	globalAPIBaseURL     = "https://agora-cli.agora.io"
-	cnAPIBaseURL         = "https://cli-cn.agora.io"
-	globalOAuthBaseURL   = "https://sso2.agora.io"
-	cnOAuthBaseURL       = "https://sso.shengwang.cn"
+	apiBaseURL           = "https://agora-cli.agora.io"
+	apiBaseURLCN         = "https://cli-cn.agora.io"
+	oauthBaseURL         = "https://sso2.agora.io"
+	oauthBaseURLCN       = "https://sso.shengwang.cn"
 	defaultOAuthClientID = "agora_web_cli"
 	defaultOAuthScope    = "basic_info,console"
 )
@@ -179,9 +179,9 @@ func (a *App) oauthBaseURLForRegion(region string) string {
 		return override
 	}
 	if region == regionCN {
-		return cnOAuthBaseURL
+		return oauthBaseURLCN
 	}
-	return globalOAuthBaseURL
+	return oauthBaseURL
 }
 
 // apiBaseURLForRegion resolves the control-plane API base URL for the
@@ -197,9 +197,9 @@ func (a *App) apiBaseURLForRegion(region string) string {
 		return override
 	}
 	if region == regionCN {
-		return cnAPIBaseURL
+		return apiBaseURLCN
 	}
-	return globalAPIBaseURL
+	return apiBaseURL
 }
 
 // explicitEnvValue returns the value the user explicitly supplied in the

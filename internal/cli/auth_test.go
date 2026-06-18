@@ -18,20 +18,20 @@ func TestOAuthConfigForRegion(t *testing.T) {
 
 	t.Run("cn region uses shengwang sso by default", func(t *testing.T) {
 		cfg := app.oauthConfigForRegion("cn")
-		if cfg.AuthorizeURL != cnOAuthBaseURL+"/api/v0/oauth/authorize" {
+		if cfg.AuthorizeURL != oauthBaseURLCN+"/api/v0/oauth/authorize" {
 			t.Fatalf("unexpected authorize url: %s", cfg.AuthorizeURL)
 		}
-		if cfg.TokenURL != cnOAuthBaseURL+"/api/v0/oauth/token" {
+		if cfg.TokenURL != oauthBaseURLCN+"/api/v0/oauth/token" {
 			t.Fatalf("unexpected token url: %s", cfg.TokenURL)
 		}
 	})
 
 	t.Run("global uses default agora sso", func(t *testing.T) {
 		cfg := app.oauthConfigForRegion("global")
-		if cfg.AuthorizeURL != globalOAuthBaseURL+"/api/v0/oauth/authorize" {
+		if cfg.AuthorizeURL != oauthBaseURL+"/api/v0/oauth/authorize" {
 			t.Fatalf("unexpected authorize url: %s", cfg.AuthorizeURL)
 		}
-		if cfg.TokenURL != globalOAuthBaseURL+"/api/v0/oauth/token" {
+		if cfg.TokenURL != oauthBaseURL+"/api/v0/oauth/token" {
 			t.Fatalf("unexpected token url: %s", cfg.TokenURL)
 		}
 	})
@@ -62,13 +62,13 @@ func TestAPIBaseURLForRegion(t *testing.T) {
 	}
 
 	t.Run("cn region uses cn cli api by default", func(t *testing.T) {
-		if got := app.apiBaseURLForRegion("cn"); got != cnAPIBaseURL {
+		if got := app.apiBaseURLForRegion("cn"); got != apiBaseURLCN {
 			t.Fatalf("unexpected api base url: %s", got)
 		}
 	})
 
 	t.Run("global uses default cli api", func(t *testing.T) {
-		if got := app.apiBaseURLForRegion("global"); got != globalAPIBaseURL {
+		if got := app.apiBaseURLForRegion("global"); got != apiBaseURL {
 			t.Fatalf("unexpected api base url: %s", got)
 		}
 	})
@@ -82,7 +82,7 @@ func TestAPIBaseURLForRegion(t *testing.T) {
 	})
 
 	t.Run("config does not override region default", func(t *testing.T) {
-		if got := app.apiBaseURLForRegion("cn"); got != cnAPIBaseURL {
+		if got := app.apiBaseURLForRegion("cn"); got != apiBaseURLCN {
 			t.Fatalf("unexpected api base url: %s", got)
 		}
 	})
