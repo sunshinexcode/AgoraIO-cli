@@ -157,7 +157,11 @@ func TestQuickstartRepoOverrideKey(t *testing.T) {
 }
 
 func TestQuickstartRepoURLOverride(t *testing.T) {
-	tmpl := quickstartTemplate{ID: "nextjs", RepoURL: "https://default.example/repo"}
+	tmpl := quickstartTemplate{
+		ID:        "nextjs",
+		RepoURL:   "https://default.example/repo",
+		RepoURLCN: "https://cn.example/repo",
+	}
 	app := &App{env: map[string]string{}}
 
 	url, override, err := app.quickstartRepoURL(tmpl)
@@ -179,5 +183,31 @@ func TestQuickstartRepoURLOverride(t *testing.T) {
 		if !errors.As(err, &cliErr) || cliErr.Code != "QUICKSTART_REPO_OVERRIDE_INVALID" {
 			t.Fatalf("expected QUICKSTART_REPO_OVERRIDE_INVALID, got %v", err)
 		}
+	}
+}
+
+func TestQuickstartRepoURLForRegion(t *testing.T) {
+	tmpl := quickstartTemplate{
+		RepoURL:   "https://global.example/repo",
+		RepoURLCN: "https://cn.example/repo",
+	}
+	if got := quickstartRepoURLForRegion(tmpl, regionGlobal); got != tmpl.RepoURL {
+		t.Fatalf("global repo url = %q, want %q", got, tmpl.RepoURL)
+	}
+	if got := quickstartRepoURLForRegion(tmpl, regionCN); got != tmpl.RepoURLCN {
+		t.Fatalf("cn repo url = %q, want %q", got, tmpl.RepoURLCN)
+	}
+}
+
+func TestQuickstartDocsURLForRegion(t *testing.T) {
+	tmpl := quickstartTemplate{
+		DocsURL:   "https://global.example/docs",
+		DocsURLCN: "https://cn.example/docs",
+	}
+	if got := quickstartDocsURL(tmpl, regionGlobal); got != tmpl.DocsURL {
+		t.Fatalf("global docs url = %q, want %q", got, tmpl.DocsURL)
+	}
+	if got := quickstartDocsURL(tmpl, regionCN); got != tmpl.DocsURLCN {
+		t.Fatalf("cn docs url = %q, want %q", got, tmpl.DocsURLCN)
 	}
 }
