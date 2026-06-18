@@ -855,7 +855,7 @@ Required `data` fields:
 - `cacheRefreshed`
   Boolean. `true` only when `--refresh-cache` successfully refreshed the unfiltered first-page project completion cache.
 
-Each item includes: `projectId`, `name`, `appId`, `projectType`, `status`, `region`, `createdAt`, `updatedAt`.
+Each item includes: `projectId`, `name`, `appId`, `projectType`, `status`, `createdAt`, `updatedAt`.
 
 Safe branch fields:
 - `items[].projectId`

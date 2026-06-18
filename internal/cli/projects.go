@@ -58,7 +58,6 @@ func (a *App) resolveProjectByNameOrID(value string) (*projectSummary, error) {
 				Name:        project.Name,
 				ProjectID:   project.ProjectID,
 				ProjectType: project.ProjectType,
-				Region:      project.Region,
 				SignKey:     project.SignKey,
 				Stage:       project.Stage,
 				Status:      project.Status,
@@ -126,13 +125,7 @@ func (a *App) resolveProjectTargetFrom(explicit, startPath string) (projectTarge
 		if err != nil {
 			return projectTarget{}, err
 		}
-		region := currentRegionFromContext(ctx)
-		if project.Region != nil && *project.Region != "" {
-			region = *project.Region
-		} else if resolved.Region != nil && *resolved.Region != "" {
-			region = *resolved.Region
-		}
-		return projectTarget{project: project, region: region}, nil
+		return projectTarget{project: project, region: currentRegionFromContext(ctx)}, nil
 	}
 	if binding, ok, _, err := detectLocalProjectBindingFrom(startPath); err != nil {
 		return projectTarget{}, err
@@ -161,9 +154,6 @@ func (a *App) resolveProjectTargetFrom(explicit, startPath string) (projectTarge
 		if region == "" {
 			region = sessionRegion
 		}
-		if project.Region != nil && *project.Region != "" {
-			region = *project.Region
-		}
 		return projectTarget{project: project, region: region}, nil
 	}
 	if ctx.CurrentProjectID == nil || *ctx.CurrentProjectID == "" {
@@ -173,11 +163,7 @@ func (a *App) resolveProjectTargetFrom(explicit, startPath string) (projectTarge
 	if err != nil {
 		return projectTarget{}, err
 	}
-	region := currentRegionFromContext(ctx)
-	if project.Region != nil && *project.Region != "" {
-		region = *project.Region
-	}
-	return projectTarget{project: project, region: region}, nil
+	return projectTarget{project: project, region: currentRegionFromContext(ctx)}, nil
 }
 
 func (a *App) getRTM2Config(projectID string) (map[string]any, error) {
@@ -410,9 +396,6 @@ func (a *App) projectUse(projectArg string) (map[string]any, error) {
 		return nil, &cliError{Message: fmt.Sprintf("Project %q was not found. Run `agora project list` to see available projects.", projectArg), Code: "PROJECT_NOT_FOUND"}
 	}
 	region := currentRegionFromContext(current)
-	if resolved.Region != nil && *resolved.Region != "" {
-		region = *resolved.Region
-	}
 	current.CurrentProjectID = &resolved.ProjectID
 	current.CurrentProjectName = &resolved.Name
 	current.CurrentRegion = region

@@ -324,14 +324,7 @@ func (a *App) resolveInitProject(ctx projectContext, item projectSummary) (proje
 	if err != nil {
 		return projectTarget{}, err
 	}
-	region := currentRegionFromContext(ctx)
-	if item.Region != nil && *item.Region != "" {
-		region = *item.Region
-	}
-	if project.Region != nil && *project.Region != "" {
-		region = *project.Region
-	}
-	return projectTarget{project: project, region: region}, nil
+	return projectTarget{project: project, region: currentRegionFromContext(ctx)}, nil
 }
 
 func (a *App) initProject(name, targetDir string, template quickstartTemplate, existingProject string, features []string, rtmDataCenter string, newProject bool, promptForReuse bool, promptOut io.Writer, promptIn io.Reader, progress progressEmitter) (map[string]any, error) {
