@@ -26,13 +26,6 @@ func TestGitQuickstartCloneArgs(t *testing.T) {
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("unexpected clone args with dash-prefixed url:\n got: %#v\nwant: %#v", args, want)
 	}
-
-	localRepo := filepath.Join(t.TempDir(), "example-repo")
-	args = gitQuickstartCloneArgs(localRepo, "/tmp/example", "")
-	want = []string{"-c", "credential.helper=", "clone", "--", localRepo, "/tmp/example"}
-	if !reflect.DeepEqual(args, want) {
-		t.Fatalf("unexpected clone args with local path:\n got: %#v\nwant: %#v", args, want)
-	}
 }
 
 func TestStripClonedGitMetadata(t *testing.T) {

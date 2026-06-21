@@ -136,11 +136,13 @@ func (a *App) resolveProjectTargetFrom(explicit, startPath string) (projectTarge
 		// not silently route the request: the binding's project does not
 		// exist on the session's control plane, so the request would fail
 		// with a confusing "project not found". Fail fast with actionable
-		// guidance instead. An empty session region (fresh login default)
-		// is treated as "no opinion" and does not conflict.
+		// guidance instead. A binding without a recorded region is treated
+		// as "no opinion" and does not conflict; the session region is
+		// always a concrete control plane (currentRegionFromContext
+		// normalizes empty/unknown values to "global").
 		bindingRegion := strings.TrimSpace(binding.Region)
 		sessionRegion := currentRegionFromContext(ctx)
-		if bindingRegion != "" && sessionRegion != "" && !strings.EqualFold(bindingRegion, sessionRegion) {
+		if bindingRegion != "" && !strings.EqualFold(bindingRegion, sessionRegion) {
 			return projectTarget{}, &cliError{
 				Message: fmt.Sprintf("This repo is bound to a %s project (.agora/project.json), but you are logged into %s. Run `agora login --region %s` to switch, or pass --project to override.", bindingRegion, sessionRegion, bindingRegion),
 				Code:    "PROJECT_REGION_MISMATCH",
