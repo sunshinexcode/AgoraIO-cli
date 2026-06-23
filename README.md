@@ -73,7 +73,7 @@ Command examples use `agora` for the installed CLI. Local source builds use `./a
 |------|---------|--------------|
 | Next.js video app | `agora init my-nextjs-demo --template nextjs` | A cloned Next.js quickstart, project binding, and `.env.local` |
 | Python voice agent | `agora init my-python-demo --template python` | A Python quickstart with Agora credentials written for the backend |
-| Go token service | `agora init my-go-demo --template go` | A Go server quickstart with project metadata and env wiring |
+| Go voice agent | `agora init my-go-demo --template go` | A Go quickstart with Agora credentials written for the backend |
 
 Run `agora quickstart list` to see all available templates.
 

@@ -27,6 +27,7 @@ Earlier entries pre-date this convention and only carry their version's compare 
 ### Fixed
 
 - Align Python and Go quickstart env writing with the upstream repositories by targeting `server/.env.local` and `AGORA_APP_ID` / `AGORA_APP_CERTIFICATE`, and avoid detecting Go quickstarts as Python quickstarts.
+- Correct the Go skills and README quickstart wording from a token-service recipe to the actual Go ConvoAI voice-agent quickstart.
 
 ## [0.2.5] - 2026-06-05
 
