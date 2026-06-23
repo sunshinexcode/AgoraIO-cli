@@ -66,6 +66,9 @@ func TestMain(m *testing.M) {
 		os.Exit(executeCLI(cliArgs))
 		return
 	}
+
+	// Local git fixtures clone from temporary repositories; keep file transport permission test-scoped.
+	_ = os.Setenv("GIT_ALLOW_PROTOCOL", "file")
 	os.Exit(m.Run())
 }
 
