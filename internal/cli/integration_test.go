@@ -67,8 +67,6 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	// Local git fixtures clone from temporary repositories; keep file transport permission test-scoped.
-	_ = os.Setenv("GIT_ALLOW_PROTOCOL", "file")
 	os.Exit(m.Run())
 }
 
@@ -254,6 +252,8 @@ func helperEnv(base []string, overrides map[string]string) []string {
 // quickstart repos so quickstart-clone tests do not hit the network.
 func createLocalGitRepo(t *testing.T, files map[string]string) string {
 	t.Helper()
+	t.Setenv("GIT_ALLOW_PROTOCOL", "file")
+
 	repoDir := t.TempDir()
 	for path, content := range files {
 		filePath := filepath.Join(repoDir, filepath.FromSlash(path))
