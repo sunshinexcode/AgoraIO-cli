@@ -31,9 +31,6 @@ agora --help
 Alternative install paths:
 
 ```bash
-# npm (Node 18+, wrapper signed with npm provenance)
-npm install -g agoraio-cli
-
 # Windows PowerShell
 irm https://raw.githubusercontent.com/AgoraIO/cli/main/install.ps1 | iex
 ```
