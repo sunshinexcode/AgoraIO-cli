@@ -113,6 +113,7 @@ The command model is intentionally layered:
 | Write env to an arbitrary path / non-quickstart repo | `agora project env write <path>` |
 | Install self-test | `agora doctor --json` |
 | Project/workspace readiness | `agora project doctor --json` |
+| Manage feature webhooks | `agora project webhook ... --json` |
 
 ### Env-related commands
 
@@ -159,6 +160,7 @@ Use this when you want to:
 - export project env values with `project env`
 - write credentials to a dotenv file with `project env write`
 - inspect project readiness with `project doctor`
+- manage feature-scoped webhook endpoints with `project webhook`
 
 ### `auth`
 
