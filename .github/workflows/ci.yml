@@ -175,7 +175,7 @@ jobs:
           server_ready=0
           server_url=""
           archive_url=""
-          for attempt in $(seq 1 40); do
+          for attempt in $(seq 1 120); do
             if ! kill -0 "$server_pid" 2>/dev/null; then
               echo "Fixture HTTP server exited before serving the test archive." >&2
               sed 's/^/  /' "$server_log" >&2 || true
@@ -205,7 +205,13 @@ jobs:
           # restriction (test only).
           export INSTALLER_CURL_PROTO_OPTS="--proto =http,https"
 
+          # Pin the source to github so this test only exercises the fixture
+          # (RELEASES_DOWNLOAD_BASE_URL) path; auto mode would fast-fail a
+          # transient fixture hiccup and divert to the real dl.agora.io mirror.
+          # github mode also uses the retry profile, restoring pre-fallback
+          # resilience.
           VERSION="$version" \
+          AGORA_INSTALL_SOURCE=github \
           RELEASES_DOWNLOAD_BASE_URL="${server_url}/download" \
           RELEASES_PAGE_URL="$server_url" \
           INSTALL_DIR="$install_dir" \
@@ -215,6 +221,7 @@ jobs:
 
           printf '%064d  %s\n' 0 "$archive" > "$download_dir/checksums.txt"
           if VERSION="$version" \
+            AGORA_INSTALL_SOURCE=github \
             RELEASES_DOWNLOAD_BASE_URL="${server_url}/download" \
             RELEASES_PAGE_URL="$server_url" \
             INSTALL_DIR="$bad_install_dir" \
@@ -253,7 +260,12 @@ jobs:
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           server_ready=0
-          for _ in $(seq 1 40); do
+          for _ in $(seq 1 120); do
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "Fixture HTTP server exited before becoming ready." >&2
+              sed 's/^/  /' "$server_log" >&2 || true
+              exit 1
+            fi
             if curl -fsS --head --connect-timeout 2 "http://127.0.0.1:18082/latest.json" >/dev/null 2>&1; then
               server_ready=1; break
             fi
@@ -319,7 +331,7 @@ jobs:
           $server = Start-Process -FilePath python -ArgumentList '-m', 'http.server', '18081', '--directory', $fixtureRoot -RedirectStandardOutput $serverOutLog -RedirectStandardError $serverErrLog -PassThru
           $archiveUrl = "http://127.0.0.1:18081/download/v$version/$archive"
           $serverReady = $false
-          for ($attempt = 1; $attempt -le 20; $attempt++) {
+          for ($attempt = 1; $attempt -le 60; $attempt++) {
             if ($server.HasExited) {
               if (Test-Path -LiteralPath $serverOutLog) { Get-Content -Path $serverOutLog | ForEach-Object { Write-Host $_ } }
               if (Test-Path -LiteralPath $serverErrLog) { Get-Content -Path $serverErrLog | ForEach-Object { Write-Host $_ } }
@@ -343,6 +355,9 @@ jobs:
 
           try {
             $env:VERSION = $version
+            # Pin source to github so this test only exercises the fixture path
+            # (auto mode could divert a transient hiccup to the real mirror).
+            $env:AGORA_INSTALL_SOURCE = 'github'
             $env:RELEASES_DOWNLOAD_BASE_URL = 'http://127.0.0.1:18081/download'
             $env:RELEASES_PAGE_URL = 'http://127.0.0.1:18081'
 
@@ -369,7 +384,7 @@ jobs:
             $global:LASTEXITCODE = 0
           } finally {
             Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
-            Remove-Item Env:VERSION, Env:RELEASES_DOWNLOAD_BASE_URL, Env:RELEASES_PAGE_URL -ErrorAction SilentlyContinue
+            Remove-Item Env:VERSION, Env:AGORA_INSTALL_SOURCE, Env:RELEASES_DOWNLOAD_BASE_URL, Env:RELEASES_PAGE_URL -ErrorAction SilentlyContinue
           }
 
       - name: Smoke test PowerShell installer S3 fallback
@@ -395,10 +410,11 @@ jobs:
           $server = Start-Process -FilePath python -ArgumentList '-m', 'http.server', '18083', '--directory', $root -PassThru
           try {
             $ready = $false
-            for ($i = 0; $i -lt 40; $i++) {
+            for ($i = 0; $i -lt 120; $i++) {
+              if ($server.HasExited) { throw 'Fixture HTTP server exited before becoming ready.' }
               try { if ((Invoke-WebRequest -Uri 'http://127.0.0.1:18083/latest.json' -UseBasicParsing).StatusCode -eq 200) { $ready = $true; break } } catch { Start-Sleep -Milliseconds 250 }
             }
-            if (-not $ready) { throw 'fixture server not ready' }
+            if (-not $ready) { throw 'fixture server not ready at http://127.0.0.1:18083/latest.json' }
 
             $env:GITHUB_API_URL = 'http://127.0.0.1:1/api'
             $env:RELEASES_DOWNLOAD_BASE_URL = 'http://127.0.0.1:1/download'
