@@ -93,6 +93,11 @@ jobs:
         shell: bash
         run: sh scripts/test-installer-messages.sh
 
+      - name: Unit test installer fallback logic
+        if: runner.os == 'Linux'
+        shell: bash
+        run: sh scripts/test-installer-fallback.sh
+
       - name: Check PowerShell installer syntax
         if: runner.os == 'Windows'
         shell: pwsh
@@ -218,6 +223,69 @@ jobs:
             exit 1
           fi
 
+      - name: Smoke test installer S3 fallback (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='0.0.0-ci'
+          arch="$(uname -m)"; case "$arch" in x86_64|amd64) arch=amd64;; aarch64|arm64) arch=arm64;; esac
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          archive="agora-cli_v${version}_${os}_${arch}.tar.gz"
+
+          root=".tmp/fallback-fixture"
+          rel="${root}/releases/v${version}"
+          install_dir="$PWD/.tmp/fallback-bin"
+          rm -rf "$root" "$install_dir"
+          mkdir -p "$rel" "$install_dir"
+
+          cp dist/agora "$root/agora"
+          tar -C "$root" -czf "${rel}/${archive}" agora
+          ( cd "$rel" && sha256sum "$archive" > checksums.txt )
+          printf '{"tag_name":"v%s","version":"%s"}' "$version" "$version" > "${root}/latest.json"
+
+          server_log="${root}/http.log"
+          python3 -m http.server 18082 --directory "$root" >"$server_log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          server_ready=0
+          for _ in $(seq 1 40); do
+            if curl -fsS --head --connect-timeout 2 "http://127.0.0.1:18082/latest.json" >/dev/null 2>&1; then
+              server_ready=1; break
+            fi
+            sleep 0.25
+          done
+          if [ "$server_ready" != "1" ]; then
+            echo "Fixture HTTP server did not become ready." >&2
+            sed 's/^/  /' "$server_log" >&2 || true
+            exit 1
+          fi
+
+          export INSTALLER_CURL_PROTO_OPTS="--proto =http,https"
+          GITHUB_API_URL="http://127.0.0.1:1/api" \
+          RELEASES_DOWNLOAD_BASE_URL="http://127.0.0.1:1/download" \
+          S3_DOWNLOAD_BASE_URL="http://127.0.0.1:18082/releases" \
+          S3_LATEST_URL="http://127.0.0.1:18082/latest.json" \
+          RELEASES_PAGE_URL="http://127.0.0.1:18082" \
+          INSTALL_DIR="$install_dir" \
+          sh ./install.sh --force
+
+          "$install_dir/agora" --help >/dev/null
+          echo "Fallback install succeeded via mock S3."
+
+          printf '%064d  %s\n' 0 "$archive" > "${rel}/checksums.txt"
+          if GITHUB_API_URL="http://127.0.0.1:1/api" \
+             RELEASES_DOWNLOAD_BASE_URL="http://127.0.0.1:1/download" \
+             S3_DOWNLOAD_BASE_URL="http://127.0.0.1:18082/releases" \
+             S3_LATEST_URL="http://127.0.0.1:18082/latest.json" \
+             RELEASES_PAGE_URL="http://127.0.0.1:18082" \
+             INSTALL_DIR="$PWD/.tmp/fallback-bin-bad" \
+             sh ./install.sh --force; then
+            echo "Expected checksum verification to fail on the mirrored archive." >&2
+            exit 1
+          fi
+          echo "Checksum verification correctly rejected the tampered mirror archive."
+
       - name: Smoke test PowerShell installer
         if: runner.os == 'Windows'
         shell: pwsh
@@ -298,4 +366,47 @@ jobs:
           } finally {
             Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
             Remove-Item Env:VERSION, Env:RELEASES_DOWNLOAD_BASE_URL, Env:RELEASES_PAGE_URL -ErrorAction SilentlyContinue
+          }
+
+      - name: Smoke test PowerShell installer S3 fallback
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = '0.0.0-ci'
+          $arch = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()) {
+            'x64' { 'amd64' } 'arm64' { 'arm64' } default { throw "Unsupported CI arch" }
+          }
+          $root = Join-Path $PWD '.tmp/fallback-fixture'
+          $rel = Join-Path $root "releases/v$version"
+          $installDir = Join-Path $PWD '.tmp/fallback-bin'
+          $archive = "agora-cli_v$version" + "_windows_${arch}.zip"
+          Remove-Item -Recurse -Force $root, $installDir -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $rel, $installDir | Out-Null
+
+          Compress-Archive -Path (Join-Path $PWD 'dist/agora.exe') -DestinationPath (Join-Path $rel $archive) -Force
+          $hash = (Get-FileHash -Path (Join-Path $rel $archive) -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path (Join-Path $rel 'checksums.txt') -Value "$hash  $archive"
+          Set-Content -NoNewline -Path (Join-Path $root 'latest.json') -Value ('{"tag_name":"v' + $version + '","version":"' + $version + '"}')
+
+          $server = Start-Process -FilePath python -ArgumentList '-m', 'http.server', '18083', '--directory', $root -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 40; $i++) {
+              try { if ((Invoke-WebRequest -Uri 'http://127.0.0.1:18083/latest.json' -UseBasicParsing).StatusCode -eq 200) { $ready = $true; break } } catch { Start-Sleep -Milliseconds 250 }
+            }
+            if (-not $ready) { throw 'fixture server not ready' }
+
+            $env:GITHUB_API_URL = 'http://127.0.0.1:1/api'
+            $env:RELEASES_DOWNLOAD_BASE_URL = 'http://127.0.0.1:1/download'
+            $env:S3_DOWNLOAD_BASE_URL = 'http://127.0.0.1:18083/releases'
+            $env:S3_LATEST_URL = 'http://127.0.0.1:18083/latest.json'
+            $env:RELEASES_PAGE_URL = 'http://127.0.0.1:18083'
+
+            & ./install.ps1 -InstallDir $installDir
+            if ($LASTEXITCODE -ne 0) { throw "install.ps1 fallback failed: $LASTEXITCODE" }
+            & (Join-Path $installDir 'agora.exe') --help *> $null
+            Write-Host 'Fallback install succeeded via mock S3.'
+          } finally {
+            Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+            Remove-Item Env:GITHUB_API_URL, Env:RELEASES_DOWNLOAD_BASE_URL, Env:S3_DOWNLOAD_BASE_URL, Env:S3_LATEST_URL, Env:RELEASES_PAGE_URL -ErrorAction SilentlyContinue
           }
