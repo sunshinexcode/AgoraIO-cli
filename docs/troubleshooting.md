@@ -82,6 +82,29 @@ curl -fsSL @@CLI_INSTALL_SH_URL@@ | sh
 Use `--force` only when you intentionally want two installs and understand
 that the first `agora` on `PATH` wins.
 
+## Installer can't reach GitHub (blocked region or rate limit)
+
+The installer downloads from GitHub by default and automatically falls back to
+the Agora mirror at `dl.agora.io` when GitHub is unreachable or rate-limited;
+downloads stay SHA-256 verified either way. Where GitHub is **fully** blocked,
+the GitHub-hosted script URL is unreachable too, so fetch the script from the
+mirror and skip GitHub entirely:
+
+```sh
+curl -fsSL https://dl.agora.io/cli/install.sh | AGORA_INSTALL_SOURCE=s3 sh
+```
+
+PowerShell:
+
+```powershell
+$env:AGORA_INSTALL_SOURCE = 's3'; irm https://dl.agora.io/cli/install.ps1 | iex
+```
+
+`AGORA_INSTALL_SOURCE` accepts `auto` (default), `github`, or `s3`. Note that
+`--prerelease` and version listing require GitHub; pin an explicit `--version`
+to install a specific release from the mirror. See
+[Install](install.html#mirror-fallback-for-restricted-networks) for details.
+
 ## `agora init` or `agora quickstart create` fails on `git clone`
 
 The CLI shells out to `git clone` for quickstarts. Most failures map to a stable error code:

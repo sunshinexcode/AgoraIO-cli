@@ -11,6 +11,10 @@
 # Quick start:
 #   irm https://agoraio.github.io/cli/install.ps1 | iex
 #
+# Restricted networks (GitHub blocked): auto-falls back to the dl.agora.io
+# mirror; where GitHub is fully blocked, fetch the script from the mirror too:
+#   $env:AGORA_INSTALL_SOURCE='s3'; irm https://dl.agora.io/cli/install.ps1 | iex
+#
 # Pin a version:
 #   $env:VERSION = '0.2.0'; & ([scriptblock]::Create((irm .../install.ps1)))
 #

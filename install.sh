@@ -4,6 +4,10 @@
 # Quick start:
 #   curl -fsSL https://agoraio.github.io/cli/install.sh | sh
 #
+# Restricted networks (GitHub blocked): auto-falls back to the dl.agora.io
+# mirror; where GitHub is fully blocked, fetch the script from the mirror too:
+#   curl -fsSL https://dl.agora.io/cli/install.sh | AGORA_INSTALL_SOURCE=s3 sh
+#
 # Pin a version:
 #   curl -fsSL .../install.sh | sh -s -- --version 0.1.4
 #
