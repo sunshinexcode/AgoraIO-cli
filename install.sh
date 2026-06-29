@@ -559,6 +559,69 @@ download_archive() {
   curl $curl_common_opts -sS "$url" -o "$output"
 }
 
+# Single download attempt against one URL using the active fetch profile.
+# Returns the downloader exit status; never exits the process.
+_fetch_once() {
+  url=$1
+  output=$2
+  mode=${3:-download}
+  if [ "$mode" = "archive" ]; then
+    download_archive "$url" "$output"
+  else
+    download_quiet "$url" "$output" "$mode"
+  fi
+}
+
+# Fetch a resource that exists on both GitHub and the S3 mirror, honoring
+# AGORA_INSTALL_SOURCE. auto: GitHub (fast-fail) then S3 (retry). github: GitHub
+# only. s3: S3 only. Dies (EXIT_NETWORK) only after every selected source fails.
+download_with_fallback() {
+  gh_url=$1
+  s3_url=$2
+  output=$3
+  mode=${4:-download}
+
+  # --- GitHub attempt (skipped when source=s3) ---
+  if [ "$AGORA_INSTALL_SOURCE" != "s3" ] && [ -n "$gh_url" ]; then
+    verbose "GET $gh_url (github)"
+    if [ "$AGORA_INSTALL_SOURCE" = "github" ]; then
+      set_fetch_profile retry
+    else
+      set_fetch_profile fastfail
+    fi
+    if _fetch_once "$gh_url" "$output" "$mode"; then
+      set_fetch_profile retry
+      return 0
+    fi
+    set_fetch_profile retry
+    if [ "$AGORA_INSTALL_SOURCE" = "github" ]; then
+      err "Download failed from GitHub: $gh_url"
+      warn "Release page: ${RELEASES_PAGE_URL}"
+      if [ "$mode" = "api" ]; then
+        die "Could not reach the GitHub API. Set --version explicitly, or provide GITHUB_TOKEN / GH_TOKEN if you are hitting rate limits." "$EXIT_NETWORK"
+      fi
+      die "GitHub download failed and AGORA_INSTALL_SOURCE=github disables the mirror. Unset it to allow the dl.agora.io mirror, or pin --version." "$EXIT_NETWORK"
+    fi
+    say "GitHub unreachable; retrying via dl.agora.io mirror..."
+  fi
+
+  # --- S3 attempt ---
+  if [ -n "$s3_url" ]; then
+    verbose "GET $s3_url (mirror)"
+    set_fetch_profile retry
+    if _fetch_once "$s3_url" "$output" "$mode"; then
+      return 0
+    fi
+  fi
+
+  err "Download failed from GitHub and the dl.agora.io mirror."
+  warn "Release page: ${RELEASES_PAGE_URL}"
+  if [ "$mode" = "api" ]; then
+    die "Could not resolve the version from GitHub or the mirror. Pin --version explicitly to install from the mirror." "$EXIT_NETWORK"
+  fi
+  die "Network or proxy issue on both GitHub and the mirror. Re-run with --verbose, or pin --version." "$EXIT_NETWORK"
+}
+
 download_or_fail() {
   url=$1
   output=$2
