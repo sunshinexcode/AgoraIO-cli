@@ -37,6 +37,8 @@ irm https://agoraio.github.io/cli/install.ps1 | iex
 
 Locked-down environments that block `curl | sh` can use npm, download a release archive from GitHub, or mirror the binary internally. Every release includes `checksums.txt`, a Cosign keyless signature, and an SBOM; see [docs/install.md](docs/install.md#enterprise--locked-down-environments) for manual tarball, checksum, and Cosign verification steps.
 
+When GitHub is unreachable (blocked region, API rate limit, transient outage), the installer automatically falls back to the Agora mirror at `dl.agora.io` (CloudFront), and downloads are still verified against `checksums.txt`. See [Restricted networks](#restricted-networks-github-blocked) below.
+
 Notes:
 
 - The shell installer supports macOS, Linux, and Windows POSIX shells such as Git Bash. Use `install.ps1` for native PowerShell installs on Windows.
@@ -54,6 +56,20 @@ curl -fsSL https://raw.githubusercontent.com/AgoraIO/cli/main/install.sh | sh
 # Windows PowerShell
 irm https://raw.githubusercontent.com/AgoraIO/cli/main/install.ps1 | iex
 ```
+
+### Restricted networks (GitHub blocked)
+
+The installer fetches from GitHub by default and automatically falls back to the Agora mirror at `dl.agora.io` on failure. Where GitHub is **fully** blocked, the GitHub-hosted script URLs above are unreachable too — fetch the script from the mirror and skip GitHub entirely with `AGORA_INSTALL_SOURCE=s3`:
+
+```bash
+# macOS, Linux, and Windows POSIX shells
+curl -fsSL https://dl.agora.io/cli/install.sh | AGORA_INSTALL_SOURCE=s3 sh
+
+# Windows PowerShell
+$env:AGORA_INSTALL_SOURCE = 's3'; irm https://dl.agora.io/cli/install.ps1 | iex
+```
+
+Downloads are still SHA-256 verified against `checksums.txt` regardless of source. `AGORA_INSTALL_SOURCE` accepts `auto` (default; GitHub then mirror), `github`, or `s3`. See [docs/install.md](docs/install.md#mirror-fallback-for-restricted-networks) for details.
 
 ### Build from source
 

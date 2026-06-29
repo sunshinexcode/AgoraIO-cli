@@ -4,6 +4,10 @@
 # Quick start:
 #   curl -fsSL https://agoraio.github.io/cli/install.sh | sh
 #
+# Restricted networks (GitHub blocked): auto-falls back to the dl.agora.io
+# mirror; where GitHub is fully blocked, fetch the script from the mirror too:
+#   curl -fsSL https://dl.agora.io/cli/install.sh | AGORA_INSTALL_SOURCE=s3 sh
+#
 # Pin a version:
 #   curl -fsSL .../install.sh | sh -s -- --version 0.1.4
 #
@@ -36,6 +40,9 @@ VERSION="${VERSION:-}"
 SUDO="${SUDO:-sudo}"
 GITHUB_API_URL="${GITHUB_API_URL:-https://api.github.com}"
 RELEASES_DOWNLOAD_BASE_URL="${RELEASES_DOWNLOAD_BASE_URL:-https://github.com/${GITHUB_REPO}/releases/download}"
+S3_DOWNLOAD_BASE_URL="${S3_DOWNLOAD_BASE_URL:-https://dl.agora.io/cli/releases}"
+S3_LATEST_URL="${S3_LATEST_URL:-https://dl.agora.io/cli/latest.json}"
+AGORA_INSTALL_SOURCE="${AGORA_INSTALL_SOURCE:-auto}"
 RELEASES_PAGE_URL="${RELEASES_PAGE_URL:-https://github.com/${GITHUB_REPO}/releases}"
 DOCS_URL="${DOCS_URL:-https://github.com/${GITHUB_REPO}#readme}"
 ISSUES_URL="${ISSUES_URL:-https://github.com/${GITHUB_REPO}/issues}"
@@ -236,6 +243,12 @@ ${BOLD}Environment:${RESET}
   NO_COLOR                    Disable colored output (any non-empty value).
   GITHUB_API_URL              Override GitHub API base URL.
   RELEASES_DOWNLOAD_BASE_URL  Override release download base URL.
+  S3_DOWNLOAD_BASE_URL        Override the S3/CloudFront mirror download base
+                              (default: https://dl.agora.io/cli/releases).
+  S3_LATEST_URL               Override the mirror's latest-version pointer
+                              (default: https://dl.agora.io/cli/latest.json).
+  AGORA_INSTALL_SOURCE        auto (GitHub then mirror), github (GitHub only),
+                              or s3 (mirror only). Default: auto.
   RELEASES_PAGE_URL           Override release page URL (used in messages).
   DOCS_URL                    Override docs URL (used in next-steps footer).
   ISSUES_URL                  Override issues URL (used in error messages).
@@ -386,6 +399,15 @@ normalize_version() {
   VERSION=$(printf '%s' "$VERSION" | sed 's/^v//')
 }
 
+validate_install_source() {
+  case "$AGORA_INSTALL_SOURCE" in
+    auto|github|s3) ;;
+    *)
+      die "AGORA_INSTALL_SOURCE must be one of: auto, github, s3 (got '${AGORA_INSTALL_SOURCE}')." "$EXIT_USAGE"
+      ;;
+  esac
+}
+
 platform_default_install_dir() {
   case "$OS" in
     windows) printf '%s\n' "$HOME/bin" ;;
@@ -455,7 +477,28 @@ detect_downloader() {
 # non-HTTPS fixtures (e.g. a local HTTP server). Not intended for end users.
 CURL_PROTO_OPTS="${INSTALLER_CURL_PROTO_OPTS:---proto =https --tlsv1.2}"
 CURL_RETRY_OPTS="--retry 3 --retry-delay 2 --retry-connrefused --connect-timeout 10 --max-time 300"
+# Fast-fail profile for the GitHub attempt: short timeout, no retries, so the
+# S3 fallback kicks in quickly in blocked regions instead of stalling.
+CURL_FASTFAIL_OPTS="--connect-timeout 5 --max-time 120"
+WGET_RETRY_OPTS="--tries=3 --timeout=30"
+WGET_FASTFAIL_OPTS="--tries=1 --timeout=5"
+# Active profiles, switched by set_fetch_profile. Default = resilient (retry),
+# which preserves prior behavior for any single-source download_or_fail caller.
 curl_common_opts="$CURL_PROTO_OPTS $CURL_RETRY_OPTS -fL"
+wget_common_opts="$WGET_RETRY_OPTS"
+
+set_fetch_profile() {
+  case "$1" in
+    fastfail)
+      curl_common_opts="$CURL_PROTO_OPTS $CURL_FASTFAIL_OPTS -fL"
+      wget_common_opts="$WGET_FASTFAIL_OPTS"
+      ;;
+    *)
+      curl_common_opts="$CURL_PROTO_OPTS $CURL_RETRY_OPTS -fL"
+      wget_common_opts="$WGET_RETRY_OPTS"
+      ;;
+  esac
+}
 
 download_quiet() {
   url=$1
@@ -464,19 +507,22 @@ download_quiet() {
 
   if [ "$DOWNLOAD_TOOL" = "wget" ]; then
     if [ "$mode" = "api" ] && [ -n "$AUTH_TOKEN" ]; then
-      wget -q -O "$output" \
+      # shellcheck disable=SC2086
+      wget $wget_common_opts -q -O "$output" \
         --header='Accept: application/vnd.github+json' \
         --header="Authorization: Bearer $AUTH_TOKEN" \
         "$url"
       return $?
     fi
     if [ "$mode" = "api" ]; then
-      wget -q -O "$output" \
+      # shellcheck disable=SC2086
+      wget $wget_common_opts -q -O "$output" \
         --header='Accept: application/vnd.github+json' \
         "$url"
       return $?
     fi
-    wget -q -O "$output" "$url"
+    # shellcheck disable=SC2086
+    wget $wget_common_opts -q -O "$output" "$url"
     return $?
   fi
 
@@ -505,10 +551,12 @@ download_archive() {
 
   if [ "$DOWNLOAD_TOOL" = "wget" ]; then
     if [ -t 1 ] && [ "$QUIET" = "0" ]; then
-      wget -O "$output" "$url"
+      # shellcheck disable=SC2086
+      wget $wget_common_opts -O "$output" "$url"
       return $?
     fi
-    wget -q -O "$output" "$url"
+    # shellcheck disable=SC2086
+    wget $wget_common_opts -q -O "$output" "$url"
     return $?
   fi
 
@@ -519,6 +567,85 @@ download_archive() {
   fi
   # shellcheck disable=SC2086
   curl $curl_common_opts -sS "$url" -o "$output"
+}
+
+# Single download attempt against one URL using the active fetch profile.
+# Returns the downloader exit status; never exits the process.
+_fetch_once() {
+  url=$1
+  output=$2
+  mode=${3:-download}
+  if [ "$mode" = "archive" ]; then
+    download_archive "$url" "$output"
+  else
+    download_quiet "$url" "$output" "$mode"
+  fi
+}
+
+# Fetch a resource that exists on both GitHub and the S3 mirror, honoring
+# AGORA_INSTALL_SOURCE. auto: GitHub (fast-fail) then S3 (retry). github: GitHub
+# only. s3: S3 only. Dies (EXIT_NETWORK) only after every selected source fails.
+download_with_fallback() {
+  gh_url=$1
+  s3_url=$2
+  output=$3
+  mode=${4:-download}
+
+  # --- GitHub attempt (skipped when source=s3) ---
+  if [ "$AGORA_INSTALL_SOURCE" != "s3" ] && [ -n "$gh_url" ]; then
+    verbose "GET $gh_url (github)"
+    if [ "$AGORA_INSTALL_SOURCE" = "github" ]; then
+      set_fetch_profile retry
+    else
+      set_fetch_profile fastfail
+    fi
+    if _fetch_once "$gh_url" "$output" "$mode"; then
+      set_fetch_profile retry
+      return 0
+    fi
+    set_fetch_profile retry
+    if [ "$AGORA_INSTALL_SOURCE" = "github" ]; then
+      err "Download failed from GitHub: $gh_url"
+      warn "Release page: ${RELEASES_PAGE_URL}"
+      if [ "$mode" = "api" ]; then
+        die "Could not reach the GitHub API. Set --version explicitly, or provide GITHUB_TOKEN / GH_TOKEN if you are hitting rate limits." "$EXIT_NETWORK"
+      fi
+      die "GitHub download failed and AGORA_INSTALL_SOURCE=github disables the mirror. Unset it to allow the dl.agora.io mirror, or pin --version." "$EXIT_NETWORK"
+    fi
+    say "GitHub unreachable; retrying via dl.agora.io mirror..."
+  fi
+
+  # --- S3 attempt ---
+  if [ -n "$s3_url" ]; then
+    verbose "GET $s3_url (mirror)"
+    set_fetch_profile retry
+    # The mirror is a plain static-file host, not the GitHub API. Never send
+    # GitHub API auth/Accept headers to it (that would leak the token). Downgrade
+    # api mode to a plain download for the mirror leg; archive mode is preserved
+    # so the progress bar still works for the archive download.
+    s3_mode=$mode
+    if [ "$s3_mode" = "api" ]; then
+      s3_mode=download
+    fi
+    if _fetch_once "$s3_url" "$output" "$s3_mode"; then
+      return 0
+    fi
+  fi
+
+  if [ "$AGORA_INSTALL_SOURCE" = "s3" ]; then
+    err "Download failed from the dl.agora.io mirror."
+    warn "Release page: ${RELEASES_PAGE_URL}"
+    if [ "$mode" = "api" ]; then
+      die "Could not resolve the version from the dl.agora.io mirror. Pin --version explicitly." "$EXIT_NETWORK"
+    fi
+    die "Network or proxy issue reaching the dl.agora.io mirror. Re-run with --verbose, or pin --version." "$EXIT_NETWORK"
+  fi
+  err "Download failed from GitHub and the dl.agora.io mirror."
+  warn "Release page: ${RELEASES_PAGE_URL}"
+  if [ "$mode" = "api" ]; then
+    die "Could not resolve the version from GitHub or the mirror. Pin --version explicitly to install from the mirror." "$EXIT_NETWORK"
+  fi
+  die "Network or proxy issue on both GitHub and the mirror. Re-run with --verbose, or pin --version." "$EXIT_NETWORK"
 }
 
 download_or_fail() {
@@ -845,12 +972,16 @@ first_tag_name_from_json() {
 
 resolve_version() {
   if [ "$PRERELEASE" = "1" ]; then
+    # Prereleases are GitHub-only: the S3 mirror exposes a stable latest.json
+    # pointer, not a prerelease index (documented limitation).
     url="${GITHUB_API_URL%/}/repos/${GITHUB_REPO}/releases?per_page=10"
+    json="${TMP}/latest.json"
+    download_or_fail "$url" "$json" api
   else
-    url="${GITHUB_API_URL%/}/repos/${GITHUB_REPO}/releases/latest"
+    gh_url="${GITHUB_API_URL%/}/repos/${GITHUB_REPO}/releases/latest"
+    json="${TMP}/latest.json"
+    download_with_fallback "$gh_url" "$S3_LATEST_URL" "$json" api
   fi
-  json="${TMP}/latest.json"
-  download_or_fail "$url" "$json" api
 
   VERSION=$(first_tag_name_from_json "$json")
   VERSION=${VERSION#v}
@@ -1227,6 +1358,7 @@ main() {
   print_banner
 
   normalize_version
+  validate_install_source
   if [ -z "$VERSION" ]; then
     say_step "Resolving latest version..."
     resolve_version
@@ -1238,7 +1370,9 @@ main() {
 
   FILENAME="agora-cli_v${VERSION}_${OS}_${ARCH}.${ARCHIVE_EXT}"
   ARCHIVE_URL="${RELEASES_DOWNLOAD_BASE_URL%/}/v${VERSION}/${FILENAME}"
+  ARCHIVE_URL_S3="${S3_DOWNLOAD_BASE_URL%/}/v${VERSION}/${FILENAME}"
   CHECKSUMS_URL="${RELEASES_DOWNLOAD_BASE_URL%/}/v${VERSION}/checksums.txt"
+  CHECKSUMS_URL_S3="${S3_DOWNLOAD_BASE_URL%/}/v${VERSION}/checksums.txt"
   ARCHIVE_PATH="${TMP}/${FILENAME}"
   CHECKSUMS_PATH="${TMP}/checksums.txt"
   EXTRACTED_BINARY="${TMP}/${BINARY_NAME}"
@@ -1263,8 +1397,11 @@ main() {
 
   if [ "$DRY_RUN" = "1" ]; then
     say_step "Dry run - no changes will be made."
-    say "  archive:   ${ARCHIVE_URL}"
-    say "  checksums: ${CHECKSUMS_URL}"
+    say "  archive:      ${ARCHIVE_URL}"
+    say "  archive (s3): ${ARCHIVE_URL_S3}"
+    say "  checksums:    ${CHECKSUMS_URL}"
+    say "  checksums(s3):${CHECKSUMS_URL_S3}"
+    say "  source mode:  ${AGORA_INSTALL_SOURCE}"
     say "  install:   ${DESTINATION}"
     sudo_status="no"
     if [ "$USE_SUDO" = "1" ]; then
@@ -1295,10 +1432,10 @@ main() {
   say_step "Installing agora ${VERSION} (${OS}/${ARCH}) -> ${DESTINATION}"
 
   say_step "Downloading archive..."
-  download_or_fail "$ARCHIVE_URL" "$ARCHIVE_PATH" archive
+  download_with_fallback "$ARCHIVE_URL" "$ARCHIVE_URL_S3" "$ARCHIVE_PATH" archive
 
   say_step "Verifying checksum..."
-  download_or_fail "$CHECKSUMS_URL" "$CHECKSUMS_PATH"
+  download_with_fallback "$CHECKSUMS_URL" "$CHECKSUMS_URL_S3" "$CHECKSUMS_PATH"
 
   EXPECTED_SHA=$(
     awk -v file="$FILENAME" '
