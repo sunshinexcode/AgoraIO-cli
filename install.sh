@@ -615,7 +615,15 @@ download_with_fallback() {
   if [ -n "$s3_url" ]; then
     verbose "GET $s3_url (mirror)"
     set_fetch_profile retry
-    if _fetch_once "$s3_url" "$output" "$mode"; then
+    # The mirror is a plain static-file host, not the GitHub API. Never send
+    # GitHub API auth/Accept headers to it (that would leak the token). Downgrade
+    # api mode to a plain download for the mirror leg; archive mode is preserved
+    # so the progress bar still works for the archive download.
+    s3_mode=$mode
+    if [ "$s3_mode" = "api" ]; then
+      s3_mode=download
+    fi
+    if _fetch_once "$s3_url" "$output" "$s3_mode"; then
       return 0
     fi
   fi
