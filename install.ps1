@@ -151,7 +151,8 @@ function Resolve-Version {
         try {
             $release = Invoke-RestMethod -Uri $S3LatestUrl -MaximumRetryCount 3 -RetryIntervalSec 2
         } catch {
-            Fail "Could not resolve the latest version from GitHub or the dl.agora.io mirror. Pin VERSION explicitly to install from the mirror." -ExitCode $EXIT_NETWORK
+            $sources = if ($AgoraInstallSource -ne 's3') { 'GitHub or the dl.agora.io mirror' } else { 'the dl.agora.io mirror' }
+            Fail "Could not resolve the latest version from $sources. Pin VERSION explicitly to install from the mirror." -ExitCode $EXIT_NETWORK
         }
     }
 
@@ -199,7 +200,8 @@ function Invoke-DownloadWithFallback {
     try {
         Invoke-WebRequest -Uri $S3Url -OutFile $Destination -MaximumRetryCount 3 -RetryIntervalSec 2
     } catch {
-        Fail "Failed to download from GitHub and the dl.agora.io mirror: $S3Url`nRelease page: $ReleasesPageUrl" -ExitCode $EXIT_NETWORK
+        $sources = if ($AgoraInstallSource -ne 's3') { 'GitHub and the dl.agora.io mirror' } else { 'the dl.agora.io mirror' }
+        Fail "Failed to download from ${sources}: $S3Url`nRelease page: $ReleasesPageUrl" -ExitCode $EXIT_NETWORK
     }
 }
 
