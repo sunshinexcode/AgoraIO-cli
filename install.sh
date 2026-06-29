@@ -467,7 +467,28 @@ detect_downloader() {
 # non-HTTPS fixtures (e.g. a local HTTP server). Not intended for end users.
 CURL_PROTO_OPTS="${INSTALLER_CURL_PROTO_OPTS:---proto =https --tlsv1.2}"
 CURL_RETRY_OPTS="--retry 3 --retry-delay 2 --retry-connrefused --connect-timeout 10 --max-time 300"
+# Fast-fail profile for the GitHub attempt: short timeout, no retries, so the
+# S3 fallback kicks in quickly in blocked regions instead of stalling.
+CURL_FASTFAIL_OPTS="--connect-timeout 5 --max-time 120"
+WGET_RETRY_OPTS="--tries=3 --timeout=30"
+WGET_FASTFAIL_OPTS="--tries=1 --timeout=5"
+# Active profiles, switched by set_fetch_profile. Default = resilient (retry),
+# which preserves prior behavior for any single-source download_or_fail caller.
 curl_common_opts="$CURL_PROTO_OPTS $CURL_RETRY_OPTS -fL"
+wget_common_opts="$WGET_RETRY_OPTS"
+
+set_fetch_profile() {
+  case "$1" in
+    fastfail)
+      curl_common_opts="$CURL_PROTO_OPTS $CURL_FASTFAIL_OPTS -fL"
+      wget_common_opts="$WGET_FASTFAIL_OPTS"
+      ;;
+    *)
+      curl_common_opts="$CURL_PROTO_OPTS $CURL_RETRY_OPTS -fL"
+      wget_common_opts="$WGET_RETRY_OPTS"
+      ;;
+  esac
+}
 
 download_quiet() {
   url=$1
@@ -476,19 +497,22 @@ download_quiet() {
 
   if [ "$DOWNLOAD_TOOL" = "wget" ]; then
     if [ "$mode" = "api" ] && [ -n "$AUTH_TOKEN" ]; then
-      wget -q -O "$output" \
+      # shellcheck disable=SC2086
+      wget $wget_common_opts -q -O "$output" \
         --header='Accept: application/vnd.github+json' \
         --header="Authorization: Bearer $AUTH_TOKEN" \
         "$url"
       return $?
     fi
     if [ "$mode" = "api" ]; then
-      wget -q -O "$output" \
+      # shellcheck disable=SC2086
+      wget $wget_common_opts -q -O "$output" \
         --header='Accept: application/vnd.github+json' \
         "$url"
       return $?
     fi
-    wget -q -O "$output" "$url"
+    # shellcheck disable=SC2086
+    wget $wget_common_opts -q -O "$output" "$url"
     return $?
   fi
 
@@ -517,10 +541,12 @@ download_archive() {
 
   if [ "$DOWNLOAD_TOOL" = "wget" ]; then
     if [ -t 1 ] && [ "$QUIET" = "0" ]; then
-      wget -O "$output" "$url"
+      # shellcheck disable=SC2086
+      wget $wget_common_opts -O "$output" "$url"
       return $?
     fi
-    wget -q -O "$output" "$url"
+    # shellcheck disable=SC2086
+    wget $wget_common_opts -q -O "$output" "$url"
     return $?
   fi
 
