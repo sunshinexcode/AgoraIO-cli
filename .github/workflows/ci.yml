@@ -153,48 +153,30 @@ jobs:
             (cd "$download_dir" && shasum -a 256 "$archive" > checksums.txt)
           fi
 
+          # Fixed-port fixture server (matches the S3 fallback steps below).
+          # Avoids the ephemeral-port + port-file write race that intermittently
+          # hung before writing its port on macOS runners.
           server_log="$fixture_root/http-server.log"
-          server_port_file="$fixture_root/http-server.port"
-          FIXTURE_ROOT="$fixture_root" SERVER_PORT_FILE="$server_port_file" python3 - <<'PY' >"$server_log" 2>&1 &
-          import functools
-          import http.server
-          import os
-          import pathlib
-
-          root = os.environ["FIXTURE_ROOT"]
-          port_file = pathlib.Path(os.environ["SERVER_PORT_FILE"])
-          handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=root)
-
-          with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as httpd:
-              port_file.write_text(str(httpd.server_port), encoding="utf-8")
-              httpd.serve_forever()
-          PY
+          server_url="http://127.0.0.1:18080"
+          archive_url="${server_url}/download/v${version}/${archive}"
+          python3 -m http.server 18080 --directory "$fixture_root" >"$server_log" 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 
           server_ready=0
-          server_url=""
-          archive_url=""
           for attempt in $(seq 1 120); do
             if ! kill -0 "$server_pid" 2>/dev/null; then
               echo "Fixture HTTP server exited before serving the test archive." >&2
               sed 's/^/  /' "$server_log" >&2 || true
               exit 1
             fi
-            if [ -s "$server_port_file" ]; then
-              server_url="http://127.0.0.1:$(cat "$server_port_file")"
-              archive_url="${server_url}/download/v${version}/${archive}"
-            fi
-            if [ -n "$archive_url" ] && curl -fsS --head --connect-timeout 2 "$archive_url" >/dev/null 2>&1; then
+            if curl -fsS --head --connect-timeout 2 "$archive_url" >/dev/null 2>&1; then
               server_ready=1
               break
             fi
             sleep 0.25
           done
           if [ "$server_ready" != "1" ]; then
-            if [ -z "$archive_url" ]; then
-              archive_url="download/v${version}/${archive}"
-            fi
             echo "Fixture HTTP server did not serve $archive_url." >&2
             sed 's/^/  /' "$server_log" >&2 || true
             exit 1
