@@ -241,7 +241,11 @@ jobs:
 
           cp dist/agora "$root/agora"
           tar -C "$root" -czf "${rel}/${archive}" agora
-          ( cd "$rel" && sha256sum "$archive" > checksums.txt )
+          if command -v sha256sum >/dev/null 2>&1; then
+            ( cd "$rel" && sha256sum "$archive" > checksums.txt )
+          else
+            ( cd "$rel" && shasum -a 256 "$archive" > checksums.txt )
+          fi
           printf '{"tag_name":"v%s","version":"%s"}' "$version" "$version" > "${root}/latest.json"
 
           server_log="${root}/http.log"
