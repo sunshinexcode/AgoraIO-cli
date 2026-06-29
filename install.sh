@@ -620,6 +620,14 @@ download_with_fallback() {
     fi
   fi
 
+  if [ "$AGORA_INSTALL_SOURCE" = "s3" ]; then
+    err "Download failed from the dl.agora.io mirror."
+    warn "Release page: ${RELEASES_PAGE_URL}"
+    if [ "$mode" = "api" ]; then
+      die "Could not resolve the version from the dl.agora.io mirror. Pin --version explicitly." "$EXIT_NETWORK"
+    fi
+    die "Network or proxy issue reaching the dl.agora.io mirror. Re-run with --verbose, or pin --version." "$EXIT_NETWORK"
+  fi
   err "Download failed from GitHub and the dl.agora.io mirror."
   warn "Release page: ${RELEASES_PAGE_URL}"
   if [ "$mode" = "api" ]; then
