@@ -101,7 +101,7 @@ func loginPageCSS(pageClass string) string {
 body{margin:0;min-height:100vh;font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 .page{min-height:100vh;display:grid;place-items:center;padding:64px 24px;color:var(--ink);background:var(--bg)}
 .card{width:min(760px,100%);padding:40px;border:1px solid var(--line);border-radius:20px;background:var(--panel);box-shadow:var(--shadow)}
-.brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-size:16px;font-weight:700;letter-spacing:-.01em}
+.brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-size:22px;font-weight:800;letter-spacing:-.01em}
 .brand-logo{display:inline-flex;align-items:center;flex:0 0 auto}
 .brand-logo svg{display:block;width:100%;height:100%}
 .brand-logo img{display:block;width:100%;height:auto}
@@ -124,9 +124,9 @@ code{padding:5px 9px;border:1px solid var(--code-line);border-radius:8px;backgro
 
 	if pageClass == "shengwang-page" {
 		b.WriteString(`
-.shengwang-page{--ink:#152033;--muted:#617083;--primary:#1469ff;--brand:#1469ff;--line:#dce7f5;--panel:#fff;--shadow:0 20px 55px rgba(21,45,85,.1);--next-line:#dce7f5;--next-bg:#f7fbff;--next-text:#46576c;--code-line:#cfe0f8;--code-bg:#eef6ff;--bg:linear-gradient(180deg,#f6faff 0%,#fff 58%,#f9fbfd 100%)}
-.brand-logo-cn{width:88px;height:auto;color:var(--brand)}
-.brand-logo-cn svg{width:88px;height:auto}
+.shengwang-page{--ink:#152033;--muted:#617083;--primary:#0b9dfd;--brand:#0b9dfd;--line:#dce7f5;--panel:#fff;--shadow:0 20px 55px rgba(21,45,85,.1);--next-line:#dce7f5;--next-bg:#f7fbff;--next-text:#46576c;--code-line:#cfe0f8;--code-bg:#eef6ff;--bg:linear-gradient(180deg,#f6faff 0%,#fff 58%,#f9fbfd 100%)}
+.brand-logo-cn{width:58px;height:auto;color:var(--brand)}
+.brand-logo-cn svg{width:58px;height:auto}
 `)
 		return b.String()
 	}
